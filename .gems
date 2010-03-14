@@ -1,0 +1,6 @@
+htmlentities
+calendar_date_select
+bluecloth  --version '>=2.0.5'
+coderay  --version '>=0.8'
+mislav-will_paginate  --version '>=2.3.11'  --source http://gems.github.com
+RedCloth --version '>=4.2.2'
