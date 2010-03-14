@@ -1,11 +1,11 @@
 require 'rake/gempackagetask'
 require 'rake/contrib/rubyforgepublisher'
 
-PKG_VERSION = "4.1.1"
+PKG_VERSION = "5.4.3"
 PKG_NAME = "typo"
 PKG_FILE_NAME = "#{PKG_NAME}-#{PKG_VERSION}"
 RUBY_FORGE_PROJECT = 'typo'
-RUBY_FORGE_USER = 'scottlaird'
+RUBY_FORGE_USER = 'fdevillamil'
 RELEASE_NAME = "#{PKG_NAME}-#{PKG_VERSION}"
 
 spec = Gem::Specification.new do |s|
@@ -17,24 +17,30 @@ spec = Gem::Specification.new do |s|
   s.files = Dir.glob('**/*', File::FNM_DOTMATCH).reject do |f| 
      [ /\.$/, /config\/database.yml$/, /config\/database.yml-/, 
      /database\.sqlite/,
-     /\.log$/, /^pkg/, /\.svn/, /^vendor\/rails/, 
+     /\.log$/, /^pkg/, /\.git/, /^vendor\/rails/, 
      /^public\/(files|xml|articles|pages|index.html)/, 
      /^public\/(stylesheets|javascripts|images)\/theme/, /\~$/, 
      /\/\._/, /\/#/ ].any? {|regex| f =~ regex }
   end
   s.require_path = '.'
-  s.author = "Tobias Luetke"
-  s.email = "tobi@leetsoft.com"
-  s.homepage = "http://www.typosphere.org"  
+  s.author = "Frédéric de Villamil"
+  s.email = "frederic@de-villamil.com"
+  s.homepage = "http://typosphere.org"  
   s.rubyforge_project = "typo"
   s.platform = Gem::Platform::RUBY 
   s.executables = ['typo']
   
-  s.add_dependency("rails", ">= 1.2")
-  s.add_dependency("mongrel", ">= 0.3.13.3")
-  s.add_dependency("mongrel_cluster", ">= 0.2.0")
-  s.add_dependency("sqlite3-ruby", ">= 1.1.0")
+  s.add_dependency("rails", "= 2.3.5")
   s.add_dependency("rails-app-installer", ">= 0.2.0")
+  s.add_dependency("ruby-debug", ">= 0.10.3")
+  s.add_dependency("flexmock", ">= 0.8.3")
+  s.add_dependency("rspec-rails", "= 1.2.7.1")
+  s.add_dependency("bluecloth", "~> 2.0.5")
+  s.add_dependency("htmlentities")
+  s.add_dependency("json")
+  s.add_dependency("calendar_date_select")
+  s.add_dependency("coderay", "~> 0.8")
+  s.add_dependency('RedCloth', "~> 4.2.2")
 end
 
 Rake::GemPackageTask.new(spec) do |p|
@@ -170,5 +176,5 @@ task :rubyforge_upload => [:package] do
 end
 
 desc "Upload the package to leetsoft, rubyforge and tag the release in svn"
-task :release => [:sweep_cache, :package, :leetsoft_upload, :rubyforge_upload, :tag_svn ]
-
+#task :release => [:sweep_cache, :package, :leetsoft_upload, :rubyforge_upload, :tag_svn ]
+task :release => [:sweep_cache, :package ]

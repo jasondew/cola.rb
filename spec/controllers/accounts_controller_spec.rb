@@ -1,153 +1,256 @@
 require File.dirname(__FILE__) + '/../spec_helper'
 
-context 'A successfully authenticated login' do
+describe 'A successfully authenticated login' do
   controller_name :accounts
 
-  setup do
-    @user = mock("user")
-    @user.stub!(:new_record?).and_return(false)
-    @user.stub!(:reload).and_return(@user)
+  before(:each) do
+    @user = mock_model(User, :new_record? => false, :reload => @user)
+    @user.stub!(:profile).and_return(Profile.find_by_label('admin'))
+    @user.stub!(:update_connection_time)
     User.stub!(:authenticate).and_return(@user)
-    post 'login', { :user_login => 'bob', :password => 'test' }
+    User.stub!(:find_by_id).with(@user.id).and_return(@user)
+    User.stub!(:count).and_return(1)
+    controller.stub!(:this_blog).and_return(Blog.default)
   end
 
-  specify 'session gets a user' do
-    request.session[:user].should == @user
+  def make_request
+    post 'login', {:user => {:login => 'bob', :password => 'test'}}
   end
 
-  specify 'cookies[:is_admin] should == "yes"' do
-    cookies['is_admin'].should == ['yes']
+  it 'session gets a user' do
+    User.should_receive(:authenticate).and_return(@user)
+    make_request
+    request.session[:user_id].should == @user.id
   end
 
-  specify 'redirects to /bogus/location' do
+  it 'sets typo_user_profile cookie' do
+    make_request
+    cookies[:typo_user_profile].should == 'admin'
+  end
+
+  it 'redirects to /bogus/location' do
     request.session[:return_to] = '/bogus/location'
-    controller.should_redirect_to '/bogus/location'
-    post 'login', { :user_login => 'bob', :password => 'test' }
+    make_request
+    response.should redirect_to('/bogus/location')
+  end
+  
+  it 'redirects to /admin if no return' do
+    make_request
+    response.should redirect_to(:controller => 'admin')
+  end
+
+  it 'redirects to /admin if no return and your are logged' do
+    session[:user_id] = session[:user] = @user.id
+    make_request
+    response.should redirect_to(:controller => 'admin')
+  end
+
+  it "should redirect to signup if no users" do
+    User.stub!(:count).and_return(0)
+    make_request
+    response.should redirect_to('/accounts/signup')
+  end  
+end
+
+describe 'User is inactive' do
+  controller_name :accounts
+
+  before(:each) do
+    User.stub!(:authenticate).and_return(nil)
+    User.stub!(:count).and_return(1)
+  end
+ 
+  def make_request
+    post 'login', {:user => {:login => 'inactive', :password => 'longtest'}}
+  end
+  
+  it 'no user in goes in the session' do
+    make_request
+    response.session[:user_id].should be_nil
+  end
+  
+  it 'login should == "inactive"' do
+    make_request
+    assigns[:login].should == 'inactive'
+  end
+
+  it 'typo_user_profile cookie should be blank' do
+    make_request
+    cookies[:typo_user_profile].should be_blank
+  end
+
+  it 'should render login action' do
+    make_request
+    response.should render_template(:login)
+  end
+  
+end
+
+describe 'Login with nil user and password' do
+  controller_name :accounts
+
+  before(:each) do
+    User.stub!(:count).and_return(1)
+  end
+  
+  def make_request
+   post 'login', {:user => {:login => nil, :password => nil}}
+  end
+
+  it 'should render login action' do
+    make_request
+    response.should render_template(:login)
   end
 end
 
-context 'Login gets the wrong password' do
+describe 'Login gets the wrong password' do
   controller_name :accounts
 
-  setup do
+  before(:each) do
     User.stub!(:authenticate).and_return(nil)
-    post 'login', {:user_login => 'bob', :password => 'test'}
+    User.stub!(:count).and_return(1)
   end
 
-  specify 'no user in goes in the session' do
-    response.session[:user].should_be nil
+  def make_request
+   post 'login', {:user => {:login => 'bob', :password => 'test'}}
   end
 
-  specify 'login should == "bob"' do
+  it 'no user in goes in the session' do
+    make_request
+    response.session[:user_id].should be_nil
+  end
+
+  it 'login should == "bob"' do
+    make_request
     assigns[:login].should == 'bob'
   end
 
-  specify 'cookies[:is_admin] should be blank' do
-    response.cookies[:is_admin].should_be_blank
+  it 'typo_user_profile cookie should be blank' do
+    make_request
+    cookies[:typo_user_profile].should be_blank
   end
 
-  specify 'should render login action' do
-    controller.should_render(:login)
-    post 'login', {:user_login => 'bob', :password => 'test'}
+  it 'should render login action' do
+    make_request
+    response.should render_template(:login)
   end
 end
 
-context 'GET /login' do
+describe 'GET /login' do
   controller_name :accounts
 
-  specify 'should render action :login' do
-    controller.should_render(:login)
+  before(:each) do
+    User.stub!(:count).and_return(1)
+  end
+
+  it 'should render action :login' do
     get 'login'
-    assigns[:login].should_be_nil
+    response.should render_template(:login)
+    assigns[:login].should be_nil
   end
 end
 
-context 'GET signup and >0 existing user' do
+describe 'GET /login with 0 existing users' do
   controller_name :accounts
 
-  setup do
+  before(:each) do
+    User.stub!(:count).and_return(0)
+  end
+
+  it 'should render action :signup' do
+    get 'login'
+    response.should redirect_to(:action => 'signup')
+    assigns[:login].should be_nil
+  end
+
+  it 'should render :signup' do
+    get 'recover_password'
+
+    response.should redirect_to(:action => 'signup')
+  end
+end
+
+describe 'GET signup and >0 existing user' do
+  controller_name :accounts
+
+  before(:each) do
     User.stub!(:count).and_return(1)
   end
 
-  specify 'should redirect to login' do
-    controller.should_redirect_to :action => 'login'
+  it 'should redirect to login' do
     get 'signup'
+    response.should redirect_to(:action => 'login')
   end
 end
 
-context 'POST signup and >0 existing user' do
+describe 'POST signup and >0 existing user' do
   controller_name :accounts
 
-  setup do
+  before(:each) do
     User.stub!(:count).and_return(1)
   end
 
-  specify 'should redirect to login' do
-    controller.should_redirect_to :action => 'login'
+  it 'should redirect to login' do
     post 'signup', params
+    response.should redirect_to(:action => 'login')
   end
 
   def params
-    {'user' =>  {'login' => 'newbob', 'password' => 'newpassword',
-        'password_confirmation' => 'newpassword'}}
+    {'user' =>  {'login' => 'newbob'}}
   end
 end
 
-context 'GET signup with 0 existing users' do
+describe 'GET signup with 0 existing users' do
   controller_name :accounts
 
-  setup do
+  before(:each) do
     User.stub!(:count).and_return(0)
     @user = mock("user")
     @user.stub!(:reload).and_return(@user)
     User.stub!(:new).and_return(@user)
   end
 
-  specify 'sets @user' do
+  it 'sets @user' do
     get 'signup'
     assigns[:user].should == @user
   end
 
-  specify 'renders action signup' do
-    controller.should_render :signup
+  it 'renders action signup' do
     get 'signup'
+    response.should render_template(:signup)
   end
 end
 
-context 'POST signup with 0 existing users' do
+describe 'POST signup with 0 existing users' do
   controller_name :accounts
 
-  setup do
+  before(:each) do
     User.stub!(:count).and_return(0)
-    @user = mock("user")
-    @user.stub!(:reload).and_return(@user)
+    @user = mock_model(User)
     @user.stub!(:login).and_return('newbob')
+    @user.stub!(:password=).and_return(true)
+    @user.stub!(:password).and_return('foo')
+    @user.stub!(:name=).and_return(true)
     User.stub!(:new).and_return(@user)
     User.stub!(:authenticate).and_return(@user)
     @user.stub!(:save).and_return(@user)
   end
 
-  specify 'creates and saves a user' do
+  it 'creates and saves a user' do
     User.should_receive(:new).and_return(@user)
     @user.should_receive(:save).and_return(@user)
     post 'signup', params
     assigns[:user].should == @user
   end
 
-  specify 'redirects to /admin/general' do
-    controller.should_redirect_to :controller => 'admin/general', :action => 'index'
+  it 'redirects to /account/confirm' do
     post 'signup', params
+    response.should redirect_to(:action => 'confirm')
   end
 
-  specify 'session gets a user' do
+  it 'session gets a user' do
     post 'signup', params
-    flash[:notice].should == 'Signup successful'
-    request.session[:user].should == @user
-  end
-
-  specify 'Sets the flash notice to "Signup successful"' do
-    post 'signup', params
-    flash[:notice].should == 'Signup successful'
+    request.session[:user_id].should == @user.id
   end
 
   def params
@@ -156,29 +259,74 @@ context 'POST signup with 0 existing users' do
   end
 end
 
-context 'User is logged in' do
+describe 'User is logged in' do
   controller_name :accounts
 
-  setup do
-    @user = mock('user')
+  before(:each) do
+    @user = mock_model(User)
 
-    session[:user] = @user
-    @user.stub!(:reload).and_return(@user)
-    request.cookies[:is_admin] = 'yes'
+    # The AccountsController class uses session[:user_id], and the
+    # Typo LoginSystem uses session[:user].  So we need to set both of
+    # these up correctly.  I'm not sure why the duplication exists.
+    session[:user_id] = @user.id
+    @controller.send(:current_user=, @user)
+
+    User.should_receive(:find) \
+      .with(:first, :conditions => { :id => @user.id }) \
+      .any_number_of_times \
+      .and_return(@user)
+
+    cookies[:typo_user_profile] = 'admin'
   end
 
-  specify 'logging out deletes the session[:user]' do
-    get 'logout'
-    session[:user].should == nil
+  it 'trying to log in once again redirects to admin/dashboard/index' do
+    get 'login'
+    response.should redirect_to(:controller => 'admin')
   end
 
-  specify 'renders the logout action' do
-    controller.should_render :logout
+  it 'logging out deletes the session[:user_id]' do
+    @user.should_receive(:forget_me)
     get 'logout'
+    session[:user_id].should be_blank
   end
 
-  specify 'logging out deletes the "is_admin" cookie' do
+  it 'redirects to the login action' do
+    @user.should_receive(:forget_me)
     get 'logout'
-    response.cookies[:is_admin].should_be_blank
+    response.should redirect_to(:action => 'login')
+  end
+
+  it 'logging out deletes cookies containing credentials' do
+    @user.should_receive(:forget_me)
+    get 'logout'
+    cookies[:auth_token].should == nil
+    cookies[:typo_user_profile].should == nil
+  end
+end
+
+describe 'User has lost his password and send a good email' do
+  controller_name :accounts
+  
+  before(:each) do
+    @user = mock_model(User, :new_record? => false, :reload => @user)
+    @user.stub!(:profile).and_return(Profile.find_by_label('admin'))
+    User.stub!(:find_by_login).with('tobi').and_return(@user)
+    User.stub!(:count).and_return(1)
+  end
+  
+  it 'should render recover_password' do
+    get 'recover_password'
+    
+    response.should render_template('recover_password')
+  end
+  
+  it 'should render login' do
+    make_request
+    
+    response.should redirect_to(:action => 'login')
+  end
+  
+  def make_request
+   post 'recover_password', {:user => {:login => 'tobi'}}
   end
 end

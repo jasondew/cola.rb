@@ -5,7 +5,7 @@ Localization.define('ro_RO') do |l|
   l.store "Manage", "Articole"
   l.store "Discuss", "Discuții"
   l.store "Design", "Design"
-  l.store "Users", ["Utilizator", "Utilizatori"]
+  l.store "%d Users", ["Utilizator", "%d Utilizatori"]
   l.store "Settings", "Configurare"
   l.store "Things you can do", "Acțiuni"
   l.store "with %s Famfamfam iconset %s", "cu %s pictograme Famfamfam %s"
@@ -63,11 +63,10 @@ Localization.define('ro_RO') do |l|
   
   #admin/cache/list.rhtml
   l.store "Cache", "Cache"
-  l.store "There are %d entries in the page cache", ["În cache se află o singură pagină", "În cache se păstrează %d pagini"]
   
   #admin/categories/_categories.rhtml
   l.store "Category title", "Numele categoriei"
-  l.store "Articles", ["Articol", "Articole"]
+  l.store "%d Articles", ["Articol", "%d Articole"]
   
   #admin/categories/_form.rhtml
   l.store "Name", "Nume"
@@ -77,7 +76,7 @@ Localization.define('ro_RO') do |l|
   l.store "Add category", "Adaugă o categorie"
   
   #admin/categorie/destroy.rhtml
-  l.store "Categories", ["Categorie", "Categorii"]
+  l.store "%d Categories", ["Categorie", "%d Categorii"]
   l.store "Show this category", "Afișează această categorie"
   l.store "Delete this category", "Șterge această categorie"
   l.store "Are you sure you want to delete the category ", "Ești sigur că dorești să ștergi această categorie"
@@ -127,8 +126,8 @@ Localization.define('ro_RO') do |l|
   #admin/content/_articles.rhtml
   l.store "Post title", "Titlul articolului"
   l.store "Posted at", "Data publicării"
-  l.store "Comments", ["Comentariu", "Comentarii"]
-  l.store "Trackbacks", ["Retrolegătură", "Retrolegături"]
+  l.store "%d Comments", ["Comentariu", "%d Comentarii"]
+  l.store "%d Trackbacks", ["Retrolegătură", "%d Retrolegături"]
   l.store "Status", "Status"
   l.store "Offline", "Offline"
   l.store "Online", "Online"
@@ -143,7 +142,7 @@ Localization.define('ro_RO') do |l|
   l.store "Article Body", "Corpul articolului"
   l.store "Article Content", "Conținutul articolului"
   l.store "Extended Content", "Conținutul extins"
-  l.store "Tags", ["Cuvînt cheie", "Cuvinte cheie"]
+  l.store "%d Tags", ["Cuvînt cheie", "%d Cuvinte cheie"]
   l.store "Save", "Salvează"
   l.store "Article Attachments", "Atașamentele articolului"
   l.store "Article Options", "Opțiunile articolului"
@@ -210,6 +209,8 @@ Localization.define('ro_RO') do |l|
   l.store "Cache", "Cache"
   l.store "Blog name", "Numele blogului"
   l.store "Blog subtitle", "Subtitlul blogului"
+  l.store "Language", "Language" #Need translate
+  l.store "This option let you choose between the simple admin interface or the complete one, displaying much more options and therefore more complicated to use. For advanced users only!","This option let you choose between the simple admin interface or the complete one, displaying much more options and therefore more complicated to use. For advanced users only!" #Need translate
   l.store "Blog URL", "Adresa blogului"
   l.store "Latitude, Longitude", "Latitudine, longitudine"
   l.store "Display", "Afișează"
@@ -231,9 +232,9 @@ Localization.define('ro_RO') do |l|
   l.store "This setting allows you to disable trackbacks for every article in your blog.  It won't remove existing trackbacks, but it will prevent any further attempt to add a trackback anywhere on your blog.", "Această opțiune va dezactiva trimiterea de retrolegături de acum înainte. Retrolegăturile existente vor rămîne în site-uri, dar alte retrolegături nu vor mai fi posibile nicăieri in blog."
   l.store "Disable trackbacks site-wide" ,"Dezactivează retrolegăturile în tot blogul"
   l.store "Enable Trackbacks by default", "Implicit retrolegăturile să fie active"
-  l.store "You can enable site wide comment moderation. If you do so, no comment or trackback will appear on your blog unless you validate it", 
+  l.store "You can enable site wide feedback moderation. If you do so, no comment or trackback will appear on your blog unless you validate it", 
           "Poți activa, pentru tot blogul, moderarea comentariilor. Dacă alegi să faci asta, niciun comentariu sau retrolegătură nu va apărea pe blog înainte de a fi validat(ă)"
-  l.store "Enable comments moderation", "Activează moderarea comentariilor"
+  l.store "Enable feedback moderation", "Activează moderarea comentariilor"
   l.store "Enable comments by default", "Implicit comentariile să fie active"
   l.store "Show your email address", "Arată adresa ta de email"
   l.store "Enable gravatars", "Activează gravataruri"
@@ -265,7 +266,6 @@ Localization.define('ro_RO') do |l|
   l.store "Explicit", "Conținut explicit"
   l.store "Empty Fragment Cache", "Golește cache"
   l.store "Rebuild cached HTML", "Reconstruiește paginile din cache"
-  l.store "There are %d entries in the cache", ["O singură pagină se află în cache", "În cache se păstrează %d pagini"]
   l.store "days", "zile"
   
   #admin/general/update_database
@@ -403,7 +403,6 @@ Localization.define('ro_RO') do |l|
   l.store "Password Confirmation", "Confirmă parola"
   l.store "Password confirmation", "Confirmă parola"
   l.store "Send notification messages via email", "Alerte prin email"
-  l.store "Send notification messages via jabber", "Alerte prin Jabber"
   l.store "Send notification messages when new articles are posted", "Alerte la publicarea de articole noi"
   l.store "Send notification messages when comments are posted", "Alerte la publicarea de comentarii noi"
   l.store 'this will be shown publicly if supplied', 'va fi vizibilă public'
@@ -432,7 +431,6 @@ Localization.define('ro_RO') do |l|
   #admin/user/show.rhtml
   l.store "User's articles", "Articole publicate de acest utilizator"
   l.store "Notify via email", "Primește alerte prin email"
-  l.store "Notify via jabber", "Primește alerte prin Jabber"
   l.store "Notify on new articles", "Primește alerte la publicarea de articole noi"
   l.store "Notify on new comments", "Primește alerte la publicarea de comentarii noi"
   

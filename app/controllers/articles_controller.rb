@@ -1,151 +1,179 @@
 class ArticlesController < ContentController
   before_filter :verify_config
+  before_filter :login_required, :only => [:preview]
+  before_filter :auto_discovery_feed, :only => [:show, :index]
 
   layout :theme_layout, :except => [:comment_preview, :trackback]
 
   cache_sweeper :blog_sweeper
+  caches_page :index, :read, :archives, :view_page, :redirect, :if => Proc.new {|c|
+    c.request.query_string == ''
+  }
 
-  cached_pages = [:index, :read, :permalink, :category, :find_by_date, :archives, :view_page, :tag, :author]
-  # If you're really memory-constrained, then consider replacing
-  # caches_action_with_params with caches_page
-  caches_action_with_params *cached_pages
-  session :new_session => false
-
-  verify(:only => [:nuke_comment, :nuke_trackback],
-         :session => :user, :method => :post,
-         :render => { :text => 'Forbidden', :status => 403 })
+  helper :'admin/base'
 
   def index
-    # On Postgresql, paginate's default count is *SLOW*, because it does a join against
-    # all of the eager-loaded tables.  I've seen it take up to 7 seconds on my test box.
-    #
-    # So, we're going to use the older Paginator class and manually provide a count.
-    # This is a 100x speedup on my box.
-    now = Time.now
-    count = this_blog.articles.count(:conditions => ['published = ? AND contents.published_at < ?',
-                                                     true, now])
-    @pages = Paginator.new self, count, this_blog.limit_article_display, params[:page]
-    @articles = this_blog.published_articles.find( :all,
-                                                   :offset => @pages.current.offset,
-                                                   :limit => @pages.items_per_page,
-                                                   :conditions => ['contents.published_at < ?', now] )
+    respond_to do |format|
+      format.html { @limit = this_blog.limit_article_display }
+      format.rss { @limit = this_blog.limit_rss_display }
+      format.atom { @limit = this_blog.limit_rss_display }
+    end
+    
+    unless params[:year].blank?
+      @noindex = 1
+      @articles = Article.paginate :page => params[:page], :conditions => { :published_at => time_delta(*params.values_at(:year, :month, :day)), :published => true }, :order => 'published_at DESC', :per_page => @limit
+    else
+      @noindex = 1 unless params[:page].blank?
+      @articles = Article.paginate :page => params[:page], :conditions => ['published = ? AND published_at < ?', true, Time.now], :order => 'published_at DESC', :per_page => @limit
+    end
+    
+    @page_title = index_title
+    @description = index_description
+    @keywords = (this_blog.meta_keywords.empty?) ? "" : this_blog.meta_keywords
+    
+    respond_to do |format|
+      format.html { render_paginated_index }
+      format.atom do
+        send_feed('atom')
+      end
+      format.rss do
+        auto_discovery_feed(:only_path => false)
+        send_feed('rss20')
+      end
+    end
   end
 
   def search
-    @articles = this_blog.published_articles.search(params[:q])
-    render_paginated_index("No articles found...")
+    @articles = this_blog.articles_matching(params[:q], :page => params[:page], :per_page => @limit)
+    return error(_("No posts found..."), :status => 200) if @articles.empty?
+    respond_to do |format|
+      format.html { render :action => 'search' }
+      format.rss { render :partial => "articles/rss20_feed", :object => @articles }
+      format.atom { render :partial => "articles/atom_feed", :object => @articles }
+    end
+  end
+
+  def live_search
+    @search = params[:q]
+    @articles = Article.search(@search)
+    render :layout => false, :action => :live_search
+  end
+
+  def preview
+    @article = Article.last_draft(params[:id])
+    render :action => 'read'
+  end
+
+  def redirect
+    part = this_blog.permalink_format.split('/')
+    part.delete('') # delete all par of / where no data. Avoid all // or / started
+    params[:from].delete('')
+    if params[:from].last =~ /\.atom$/
+      params[:format] = 'atom'
+      params[:from].last.gsub!(/\.atom$/, '')
+    elsif params[:from].last =~ /\.rss$/
+      params[:format] = 'rss'
+      params[:from].last.gsub!(/\.rss$/, '')
+    end
+    zip_part = part.zip(params[:from])
+    article_params = {}
+    zip_part.each do |asso|
+      ['%year%', '%month%', '%day%', '%title%'].each do |format_string|
+        if asso[0] =~ /(.*)#{format_string}(.*)/
+          before_format = $1
+          after_format = $2
+          next if asso[1].nil?
+          result =  asso[1].gsub(before_format, '')
+          result.gsub!(after_format, '')
+          article_params[format_string.gsub('%', '').to_sym] = result
+        end
+      end
+    end
+    begin
+      @article = this_blog.requested_article(article_params)
+    rescue
+      #Not really good. 
+      # TODO :Check in request_article type of DATA made in next step
+    end
+    return show_article if @article
+
+    # Redirect old version with /:year/:month/:day/:title to new format.
+    # because it's change
+    ["%year%/%month%/%day%/%title%".split('/'), "articles/%year%/%month%/%day%/%title%".split('/')].each do |part|
+      part.delete('') # delete all par of / where no data. Avoid all // or / started
+      params[:from].delete('')
+      zip_part = part.zip(params[:from])
+      article_params = {}
+      zip_part.each do |asso|
+        ['%year%', '%month%', '%day%', '%title%'].each do |format_string|
+          if asso[0] =~ /(.*)#{format_string}(.*)/
+            before_format = $1
+            after_format = $2
+            next if asso[1].nil?
+            result =  asso[1].gsub(before_format, '')
+            result.gsub!(after_format, '')
+            article_params[format_string.gsub('%', '').to_sym] = result
+          end
+        end
+      end
+      begin
+        @article = this_blog.requested_article(article_params)
+      rescue
+        #Not really good. 
+        # TODO :Check in request_article type of DATA made in next step
+      end
+      if @article
+        redirect_to @article.permalink_url, :status => 301
+        return
+      end
+    end
+
+
+    # see how manage all by this redirect to redirect in different possible
+    # way maybe define in a controller in admin part in insert in this table
+    r = Redirect.find_by_from_path(params[:from].join("/"))
+
+    if(r)
+      path = r.to_path
+      url_root = self.class.relative_url_root
+      path = url_root + path unless url_root.nil? or path[0,url_root.length] == url_root
+      redirect_to path, :status => 301
+    else
+      render :text => "Page not found", :status => 404
+    end
+  end
+
+
+  ### Deprecated Actions ###
+
+  def archives
+    @articles = Article.find_published
+    @page_title = "#{_('Archives for')} #{this_blog.blog_name}"
+    @keywords = (this_blog.meta_keywords.empty?) ? "" : this_blog.meta_keywords
+    @description = "#{_('Archives for')} #{this_blog.blog_name} - #{this_blog.blog_subtitle}"
   end
 
   def comment_preview
-    if params[:comment].blank? or params[:comment][:body].blank?
+    if (params[:comment][:body].blank? rescue true)
       render :nothing => true
       return
     end
 
     set_headers
-    @comment = this_blog.comments.build(params[:comment])
+    @comment = Comment.new(params[:comment])
     @controller = self
   end
 
-  def archives
-    @articles = this_blog.published_articles
-  end
-
-  def read
-    display_article { this_blog.published_articles.find(params[:id]) }
-  end
-
-  def permalink
-    display_article(this_blog.published_articles.find_by_permalink(*params.values_at(:year, :month, :day, :title)))
-  end
-
-  def find_by_date
-    @articles = this_blog.published_articles.find_all_by_date(params[:year], params[:month], params[:day])
-    render_paginated_index
-  end
-
-  def error(message = "Record not found...")
-    @message = message.to_s
-    render :action => 'error'
-  end
-
-  def author
-    render_grouping(User)
-  end
-
   def category
-    render_grouping(Category)
+    redirect_to categories_path, :status => 301
   end
 
   def tag
-    render_grouping(Tag)
-  end
-
-  # Receive comments to articles
-  def comment
-    unless request.xhr? || this_blog.sp_allow_non_ajax_comments
-      render_error("non-ajax commenting is disabled")
-      return
-    end
-
-    if request.post?
-      @article = this_blog.published_articles.find(params[:id])
-      params[:comment].merge!({:ip => request.remote_ip,
-                               :published => true,
-                               :user => session[:user],
-                               :user_agent => request.env['HTTP_USER_AGENT'],
-                               :referrer => request.env['HTTP_REFERER'],
-                               :permalink => @article.permalink_url})
-      @comment = @article.comments.build(params[:comment])
-      @comment.author ||= 'Anonymous'
-      @comment.save
-      add_to_cookies(:author, @comment.author)
-      add_to_cookies(:url, @comment.url)
-
-      set_headers
-      render :partial => "comment", :object => @comment
-    end
-  end
-
-  # Receive trackbacks linked to articles
-  def trackback
-    @error_message = catch(:error) do
-      if this_blog.global_pings_disable
-        throw :error, "Trackback not saved"
-      elsif params[:__mode] == "rss"
-        # Part of the trackback spec... will implement later
-        # XXX. Should this throw an error?
-      elsif !(params.has_key?(:url) && params.has_key?(:id))
-        throw :error, "A URL is required"
-      else
-        begin
-          settings = { :id => params[:id],
-                       :url => params[:url],      :blog_name => params[:blog_name],
-                       :title => params[:title],  :excerpt => params[:excerpt],
-                       :ip  => request.remote_ip, :published => true }
-          this_blog.ping_article!(settings)
-        rescue ActiveRecord::RecordNotFound, ActiveRecord::StatementInvalid
-          throw :error, "Article id #{params[:id]} not found."
-        rescue ActiveRecord::RecordInvalid
-          throw :error, "Trackback not saved"
-        end
-      end
-      nil
-    end
-  end
-
-  def nuke_comment
-    Comment.find(params[:id]).destroy
-    render :nothing => true
-  end
-
-  def nuke_trackback
-    Trackback.find(params[:id]).destroy
-    render :nothing => true
+    redirect_to tags_path, :status => 301
   end
 
   def view_page
-    if(@page = Page.find_by_name(params[:name].to_a.join('/')))
+    if(@page = Page.find_by_name(params[:name].map { |c| c }.join("/"))) && @page.published?
       @page_title = @page.title
     else
       render :nothing => true, :status => 404
@@ -158,66 +186,115 @@ class ArticlesController < ContentController
 
   private
 
-  def add_to_cookies(name, value, path=nil, expires=nil)
-    cookies[name] = { :value => value, :path => path || "/#{controller_name}",
-                       :expires => 6.weeks.from_now }
-  end
-
   def verify_config
     if User.count == 0
       redirect_to :controller => "accounts", :action => "signup"
-    elsif ! this_blog.is_ok?
-      redirect_to :controller => "admin/general", :action => "redirect"
+    elsif ! this_blog.configured?
+      redirect_to :controller => "admin/settings", :action => "redirect"
     else
       return true
     end
   end
-
-  def display_article(article = nil)
-    begin
-      @article      = block_given? ? yield : article
-      @comment      = Comment.new
-      @page_title   = @article.title
-      auto_discovery_feed :type => 'article', :id => @article.id
-      render :action => 'read'
-    rescue ActiveRecord::RecordNotFound, NoMethodError => e
-      error("Post not found...")
+  
+  # See an article We need define @article before
+  def show_article
+    @comment      = Comment.new
+    @page_title   = @article.title
+    article_meta
+    
+    auto_discovery_feed
+    respond_to do |format|
+      format.html { render :template => '/articles/read' }
+      format.atom { render_feed('atom') }
+      format.rss  { render_feed('rss20') }
+      format.xml  { render_feed('atom') }
     end
+  rescue ActiveRecord::RecordNotFound
+    error("Post not found...")
   end
 
-  alias_method :rescue_action_in_public, :error
+  def article_meta
+    @keywords = ""
+    @keywords << @article.categories.map { |c| c.name }.join(", ") << ", " unless @article.categories.empty?
+    @keywords << @article.tags.map { |t| t.name }.join(", ") unless @article.tags.empty?  
+    @description = "#{@article.title}, " 
+    @description << @article.categories.map { |c| c.name }.join(", ") << ", " unless @article.categories.empty?
+    @description << @article.tags.map { |t| t.name }.join(", ") unless @article.tags.empty?
+    @description << " #{this_blog.blog_name}"
+  end
 
-  def render_error(object = '', status = 500)
-    render(:text => (object.errors.full_messages.join(", ") rescue object.to_s), :status => status)
+  def send_feed(format)
+    if this_blog.feedburner_url.empty? or request.env["HTTP_USER_AGENT"] =~ /FeedBurner/i
+      render :partial => "articles/#{format}_feed", :object => @articles
+    else
+      redirect_to "http://feeds2.feedburner.com/#{this_blog.feedburner_url}"
+    end
+  end
+  
+  # TODO: Merge with send_feed?
+  def render_feed(type)
+    render :partial => "/articles/#{type}_feed", :object => @article.published_feedback 
   end
 
   def set_headers
     headers["Content-Type"] = "text/html; charset=utf-8"
   end
 
-  def list_groupings(klass)
-    @grouping_class = klass
-    @groupings = klass.find_all_with_article_counters(1000)
-    render :action => 'groupings'
-  end
-
-  def render_grouping(klass)
-    return list_groupings(klass) unless params[:id]
-
-    @page_title = "#{klass.to_s.underscore} #{params[:id]}"
-    @articles = klass.find_by_permalink(params[:id]).articles.find_already_published rescue []
-    auto_discovery_feed :type => klass.to_s.underscore, :id => params[:id]
-    render_paginated_index("Can't find posts with #{klass.to_prefix} '#{h(params[:id])}'")
-  end
-
-  def render_paginated_index(on_empty = "No posts found...")
-    return error(on_empty) if @articles.empty?
-
-    @pages = Paginator.new self, @articles.size, this_blog.limit_article_display, params[:page]
-    start = @pages.current.offset
-    stop  = (@pages.current.next.offset - 1) rescue @articles.size
-    # Why won't this work? @articles.slice!(start..stop)
-    @articles = @articles.slice(start..stop)
+  def render_paginated_index(on_empty = _("No posts found..."))
+    return error(on_empty, :status => 200) if @articles.empty?
+    if this_blog.feedburner_url.empty?
+      auto_discovery_feed(:only_path => false)
+    else
+      @auto_discovery_url_rss = "http://feeds2.feedburner.com/#{this_blog.feedburner_url}"
+      @auto_discovery_url_atom = "http://feeds2.feedburner.com/#{this_blog.feedburner_url}"
+    end
     render :action => 'index'
+  end
+
+  def index_title
+    returning('') do |page_title|
+      page_title << formatted_date_selector(_('Archives for '))
+
+      if params[:page]
+        page_title << 'Older posts' if page_title.blank?
+        page_title << ", page " << params[:page]
+      end
+    end
+  end
+  
+  def index_description
+    returning('') do |page_description|
+      if this_blog.meta_description.empty?
+      page_description << "#{this_blog.blog_name} #{this_blog.blog_subtitle}" 
+      else
+        page_description << this_blog.meta_description
+      end
+      
+      page_description << formatted_date_selector(_(', Articles for '))
+      
+      if params[:page]
+        page_description << ", page " << params[:page]
+      end
+    end
+  end
+  
+  def time_delta(year, month = nil, day = nil)
+    from = Time.mktime(year, month || 1, day || 1)
+
+    to = from.next_year
+    to = from.next_month unless month.blank?
+    to = from + 1.day unless day.blank?
+    to = to - 1 # pull off 1 second so we don't overlap onto the next day
+    return from..to
+  end
+    
+  def formatted_date_selector(prefix = '')
+    return '' unless params[:year]
+    format = prefix
+    format << '%A %d ' if params[:day]
+    format << '%B ' if params[:month]
+    format << '%Y' if params[:year]
+
+    return(Time.mktime(*params.values_at(:year, :month, :day)).strftime(format))
   end
 end

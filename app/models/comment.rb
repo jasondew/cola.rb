@@ -1,5 +1,4 @@
 require_dependency 'spam_protection'
-require 'sanitize'
 require 'timeout'
 
 class Comment < Feedback
@@ -18,13 +17,6 @@ class Comment < Feedback
     end
   end
 
-  def notify_user_via_jabber(user)
-    if user.notify_via_jabber?
-      JabberNotify.send_message(user, "New comment", "A new comment was posted to '#{article.title}' on #{blog.blog_name} by #{author}: 
-        #{body}", self.html(:body)) 
-    end
-  end
-
   def interested_users
     users = User.find_boolean(:all, :notify_on_comments)
     self.notify_users = users
@@ -33,6 +25,21 @@ class Comment < Feedback
 
   def default_text_filter
     blog.comment_text_filter.to_text_filter
+  end
+
+  def atom_author(xml)
+    xml.author { xml.name author }
+  end
+
+  def rss_author(xml)
+  end
+
+  def atom_title(xml)
+    xml.title "Comment on #{article.title} by #{author}", :type => 'html'
+  end
+
+  def rss_title(xml)
+    xml.title "Comment on #{article.title} by #{author}"
   end
 
   protected

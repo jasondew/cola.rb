@@ -1,9 +1,7 @@
 # Read about fixtures at http://ar.rubyonrails.org/classes/Fixtures.html
 static_sidebar:
-  id: 3
   active_position: 1
   staged_position: 1
-  blog_id: 1
   config: |+
     --- !map:HashWithIndifferentAccess
       title: Static Sidebar

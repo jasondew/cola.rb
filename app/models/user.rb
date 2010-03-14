@@ -1,7 +1,8 @@
 require 'digest/sha1'
 
-# this model expects a certain database layout and its based on the name/login pattern.
-class User < CachedModel
+class User < ActiveRecord::Base
+  belongs_to :profile
+  belongs_to :text_filter
   has_many :notifications, :foreign_key => 'notify_user_id'
   has_many :notify_contents, :through => :notifications,
     :source => 'notify_content',
@@ -12,21 +13,58 @@ class User < CachedModel
       find_published(:all, :order => 'created_at DESC')
     end
   end
+  has_many :published_articles,
+    :class_name => 'Article',
+    :conditions => { :published => true },
+    :order      => "published_at DESC"
 
   # echo "typo" | sha1sum -
   @@salt = '20ac4d290c2293702c64b3b287ae5ea79b26a5c1'
   cattr_accessor :salt
+  attr_accessor :last_venue
 
-  # Authenticate a user.
-  #
-  # Example:
-  #   @user = User.authenticate('bob', 'bobpass')
-  #
   def self.authenticate(login, pass)
     find(:first,
-         :conditions => ["login = ? AND password = ?", login, sha1(pass)])
+         :conditions => ["login = ? AND password = ? AND state = ?", login, sha1(pass), 'active'])
   end
 
+  def update_connection_time
+    self.last_venue = last_connection
+    self.last_connection = Time.now
+    self.save
+  end
+
+  # These create and unset the fields required for remembering users between browser closes
+  def remember_me
+    remember_me_for 2.weeks
+  end
+
+  def remember_me_for(time)
+    remember_me_until time.from_now.utc
+  end
+
+  def remember_me_until(time)
+    self.remember_token_expires_at = time
+    self.remember_token            = Digest::SHA1.hexdigest("#{email}--#{remember_token_expires_at}")
+    save(false)
+  end
+
+  def forget_me
+    self.remember_token_expires_at = nil
+    self.remember_token            = nil
+    save(false)
+  end
+
+  def permalink_url(anchor=nil, only_path=true)
+    blog = Blog.default # remove me...
+
+    blog.url_for(
+      :controller => 'users',
+      :action => 'show',
+      :id => permalink
+    )
+  end
+  
   def self.authenticate?(login, pass)
     user = self.authenticate(login, pass)
     return false if user.nil?
@@ -36,8 +74,23 @@ class User < CachedModel
   end
 
   def self.find_by_permalink(permalink)
-    self.find_by_login(permalink)
+    returning(self.find_by_login(permalink)) do |user|
+      raise ActiveRecord::RecordNotFound unless user
+    end
   end
+
+  # The current project_modules
+  def project_modules
+    profile.modules.collect { |m| AccessControl.project_module(profile.label, m) }.uniq.compact rescue []
+  end
+  
+  # Generate Methods takes from AccessControl rules
+  # Example:
+  #
+  #   def publisher?
+  #     profile.label == :publisher
+  #   end
+  AccessControl.roles.each { |r| define_method("#{r.to_s.downcase.to_sym}?") { profile.label.to_s.downcase.to_sym == r.to_s.downcase.to_sym } }
 
   # Let's be lazy, no need to fetch the counters, rails will handle it.
   def self.find_all_with_article_counters(ignored_arg)
@@ -72,6 +125,14 @@ class User < CachedModel
     login
   end
 
+  def to_param
+    permalink
+  end
+
+  def admin?
+    profile.label == Profile::ADMIN
+  end
+
   protected
 
   # Apply SHA1 encryption to the supplied password.
@@ -86,7 +147,10 @@ class User < CachedModel
   # Before saving the record to database we will crypt the password
   # using SHA1.
   # We never store the actual password in the DB.
+  # But before the encryption, we send an email to user for he can remind his
+  # password
   def crypt_password
+    send_create_notification
     write_attribute "password", self.class.sha1(password(true))
     @password = nil
   end
@@ -101,15 +165,43 @@ class User < CachedModel
       user = self.class.find(self.id)
       self.password = user.password
     else
+      send_create_notification
       write_attribute "password", self.class.sha1(password(true))
       @password = nil
     end
   end
 
-  validates_uniqueness_of :login, :on => :create
-  validates_length_of :password, :within => 5..40, :on => :create
-  validates_presence_of :login
+  before_validation :set_default_profile
 
-  validates_confirmation_of :password, :if=> Proc.new { |u| u.password.size > 0}
+  def set_default_profile
+    if User.count.zero?
+      self.profile ||= Profile.find_by_label('admin')
+    else
+      self.profile ||= Profile.find_by_label('contributor')
+    end
+  end
+
+  validates_uniqueness_of :login, :on => :create
+  validates_length_of :password, :within => 5..40, :if => Proc.new { |user|
+    user.read_attribute('password').nil? or user.password.to_s.length > 0
+  }
+
+  validates_presence_of :login
+  validates_presence_of :email
+
+  validates_confirmation_of :password
   validates_length_of :login, :within => 3..40
+
+
+  private
+
+  # Send a mail of creation user to the user create
+  def send_create_notification
+    begin
+      email_notification = NotificationMailer.create_notif_user(self)
+      EmailNotify.send_message(self,email_notification)
+    rescue => err
+      logger.error "Unable to send notification of create user email: #{err.inspect}"
+    end
+  end
 end

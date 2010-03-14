@@ -1,42 +1,42 @@
 require File.dirname(__FILE__) + '/../spec_helper'
 
-context 'Given a new test theme' do
-  setup do
+describe 'Given a new test theme' do
+  before(:each) do
     @theme = Theme.new("test", "test")
   end
 
-  specify 'layout path should be "../../themes/test/layouts/default"'  do
-    @theme.layout.should == "../../themes/test/layouts/default"
-  end
+  it 'layout path should be "#{RAILS_ROOT}/themes/test/layouts/default.html.erb"'  do
+    @theme.layout('index').should == "#{RAILS_ROOT}/themes/test/layouts/default.html.erb"
+  end  
 end
 
-context 'Given a the default theme' do
-  setup do
-    @theme = Blog.new.current_theme
+describe 'Given the default theme' do
+  before(:each) do
+    @theme = Blog.default.current_theme
   end
 
-  specify 'theme should be azure' do
-    @theme.name.should == 'azure'
+  it 'theme should be typographic' do
+    @theme.name.should == 'typographic'
   end
 
-  specify 'theme description should be correct' do
+  it 'theme description should be correct' do
     @theme.description.should ==
-      File.open(RAILS_ROOT + '/themes/azure/about.markdown') {|f| f.read}
+      File.open(RAILS_ROOT + '/themes/typographic/about.markdown') {|f| f.read}
   end
 
-  specify 'theme_from_path should find the correct theme' do
-    Theme.theme_from_path(RAILS_ROOT + 'themes/azure').name.should == 'azure'
+  it 'theme_from_path should find the correct theme' do
+    Theme.theme_from_path(RAILS_ROOT + 'themes/typographic').name.should == 'typographic'
     Theme.theme_from_path(RAILS_ROOT + 'themes/scribbish').name.should == 'scribbish'
   end
 
-  specify '#search_theme_path finds the right things' do
+  it '#search_theme_path finds the right things' do
     Theme.should_receive(:themes_root).and_return(RAILS_ROOT + '/test/mocks/themes')
     Theme.search_theme_directory.collect{|t| File.basename(t)}.sort.should ==
-      %w{ 123-numbers-in-path CamelCaseDirectory azure i-have-special-chars }
+      %w{ 123-numbers-in-path CamelCaseDirectory i-have-special-chars typographic }
   end
 
-  specify 'find_all finds all the installed themes' do
-    Theme.find_all.collect{|t| t.name}.should_include(@theme.name)
+  it 'find_all finds all the installed themes' do
+    Theme.find_all.collect{|t| t.name}.should include(@theme.name)
     Theme.find_all.size.should ==
       Dir.glob(RAILS_ROOT + '/themes/[a-zA-Z0-9]*').select do |file|
         File.readable? "#{file}/about.markdown"

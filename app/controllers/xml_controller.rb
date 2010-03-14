@@ -1,74 +1,98 @@
-class XmlController < ContentController
-  caches_action_with_params :feed
-  session :off
+class XmlController < ApplicationController
+  caches_page :feed, :if => Proc.new {|c|
+    c.request.query_string == ''
+  }
 
-  NORMALIZED_FORMAT_FOR = {'atom' => 'atom10', 'rss' => 'rss20',
-    'atom10' => 'atom10', 'rss20' => 'rss20',
-    'googlesitemap' => 'googlesitemap' }
+  NORMALIZED_FORMAT_FOR = {'atom' => 'atom', 'rss' => 'rss',
+    'atom10' => 'atom', 'atom03' => 'atom', 'rss20' => 'rss',
+    'googlesitemap' => 'googlesitemap', 'rsd' => 'rsd' }
 
-  CONTENT_TYPE_FOR = { 'rss20' => 'application/xml',
-    'atom10' => 'application/atom+xml',
+  CONTENT_TYPE_FOR = { 'rss' => 'application/xml',
+    'atom' => 'application/atom+xml',
     'googlesitemap' => 'application/xml' }
 
+  before_filter :adjust_format
 
   def feed
-    @items = Array.new
     @format = params[:format]
-    @blog = this_blog
 
-    if @format == 'atom03'
-      headers["Status"] = "301 Moved Permanently"
-      return redirect_to(:format=>'atom')
+    unless @format
+      return render(:text => 'Unsupported format', :status => 404)
     end
 
-    @feed_title = this_blog.blog_name
-    @link = this_blog.base_url
-
-    @format = NORMALIZED_FORMAT_FOR[@format]
-
-    if not @format
-      render :text => 'Unsupported format', :status => 404
-      return
-    end
-
-    headers["Content-Type"] = "#{CONTENT_TYPE_FOR[@format]}; charset=utf-8"
-
-    if respond_to?("prep_#{params[:type]}")
-      self.send("prep_#{params[:type]}")
+    case params[:type]
+    when 'feed'
+      redirect_to :controller => 'articles', :action => 'index', :format => @format, :status => 301
+    when 'comments'
+      head :moved_permanently, :location => admin_comments_url(:format => @format)
+    when 'article'
+      head :moved_permanently, :location => Article.find(params[:id]).permalink_by_format(@format)
+    when 'category', 'tag', 'author'
+      head :moved_permanently, \
+        :location => self.send("#{params[:type]}_url", params[:id], :format => @format)
     else
-      render :text => 'Unsupported action', :status => 404
-      return
-    end
+      @items = Array.new
+      @blog = this_blog
+      # We use @feed_title.<< to destructively modify @feed_title, below, so
+      # make sure we have our own copy to modify.
+      @feed_title = this_blog.blog_name.dup
+      @link = this_blog.base_url
+      @self_url = url_for(params)
 
-    render :action => "#{@format}_feed"
+      if respond_to?("prep_#{params[:type]}")
+        self.send("prep_#{params[:type]}")
+      else
+        render :text => 'Unsupported action', :status => 404
+        return
+      end
+
+      # TODO: Use templates from articles controller.
+      respond_to do |format|
+        format.googlesitemap
+        format.atom
+        format.rss
+      end
+    end
   end
 
   def itunes
     @feed_title = "#{this_blog.blog_name} Podcast"
     @items = Resource.find(:all, :order => 'created_at DESC',
       :conditions => ['itunes_metadata = ?', true], :limit => this_blog.limit_rss_display)
-    render :action => "itunes_feed"
+    respond_to do |format|
+      format.rss { render :action => "itunes_feed" }
+    end
   end
 
   def articlerss
-    redirect_to :action => 'feed', :format => 'rss20', :type => 'article', :id => params[:id]
+    redirect_to :action => 'feed', :format => 'rss', :type => 'article', :id => params[:id]
   end
 
   def commentrss
-    redirect_to :action => 'feed', :format => 'rss20', :type => 'comments'
+    redirect_to :action => 'feed', :format => 'rss', :type => 'comments'
   end
   def trackbackrss
-    redirect_to :action => 'feed', :format => 'rss20', :type => 'trackbacks'
+    redirect_to :action => 'feed', :format => 'rss', :type => 'trackbacks'
   end
 
   def rsd
+
   end
 
   protected
 
+  def adjust_format
+    if params[:format]
+      params[:format] = NORMALIZED_FORMAT_FOR[params[:format]]
+    else
+      params[:format] = 'rss'
+    end
+    return true
+  end
+
   def fetch_items(association, order='published_at DESC', limit=nil)
     if association.instance_of?(Symbol)
-      association = this_blog.send(association)
+      association = association.to_s.singularize.classify.constantize
     end
     limit ||= this_blog.limit_rss_display
     @items += association.find_already_published(:all, :limit => limit, :order => order)
@@ -113,7 +137,7 @@ class XmlController < ContentController
   def prep_sitemap
     fetch_items(:articles, 'created_at DESC', 1000)
     fetch_items(:pages, 'created_at DESC', 1000)
-    @items += Category.find_all_with_article_counters(1000)
-    @items += Tag.find_all_with_article_counters(1000)
+    @items += Category.find_all_with_article_counters(1000) unless this_blog.index_categories == false
+    @items += Tag.find_all_with_article_counters(1000) unless this_blog.index_tags == false
   end
 end

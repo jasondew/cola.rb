@@ -7,6 +7,7 @@ class CreateNotifications < ActiveRecord::Migration
 
   def self.up
     rename_table :notifications, :old_notifications
+
     create_table :notifications do |t|
       t.column :content_id, :integer
       t.column :user_id, :integer

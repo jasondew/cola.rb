@@ -5,6 +5,8 @@ class Trackback < Feedback
   content_fields :excerpt
   validates_presence_of :title, :excerpt, :url
 
+  attr_accessible :url, :blog_name, :title, :excerpt, :ip, :published, :article_id
+
   def initialize(*args, &block)
     super(*args, &block)
     self.title ||= self.url
@@ -12,10 +14,6 @@ class Trackback < Feedback
   end
 
   before_create :process_trackback
-
-  def make_nofollow
-    typo_deprecated 'Do it via postprocessing.'
-  end
 
   def process_trackback
     if excerpt.length >= 251
@@ -46,6 +44,24 @@ class Trackback < Feedback
 
   def body=(newval)
     self.excerpt = newval
+  end
+
+  def rss_author(xml)
+  end
+
+  def atom_author(xml)
+    xml.author do
+      xml.name blog_name
+      xml.uri url
+    end
+  end
+
+  def atom_title(xml)
+    xml.title "Trackback from #{blog_name}: #{title} on #{article.title}", :type => 'html'
+  end
+
+  def rss_title(xml)
+    xml.title "Trackback from #{blog_name}: #{title} on #{article.title}"
   end
 end
 
