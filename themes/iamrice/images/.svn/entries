@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="utf-8"?>
+<wc-entries
+   xmlns="svn:">
+<entry
+   committed-rev="37"
+   name=""
+   committed-date="2006-07-14T05:38:04.721210Z"
+   url="https://digital-achievement.com/svn/public/typothemes/tags/release_4_0_0/iamrice/images"
+   last-author="tim"
+   kind="dir"
+   uuid="e4d6e3be-9c12-0410-bc8d-bd43e36fdf11"
+   revision="66"/>
+<entry
+   committed-rev="37"
+   name="bracket.gif"
+   text-time="2006-07-28T05:02:10.000000Z"
+   committed-date="2006-07-14T05:38:04.721210Z"
+   checksum="fe3a4a1c301f3734aebd1072507b29a7"
+   last-author="tim"
+   kind="file"
+   prop-time="2006-07-28T05:02:10.000000Z"/>
+<entry
+   committed-rev="37"
+   name="hdr.gif"
+   text-time="2006-07-28T05:02:10.000000Z"
+   committed-date="2006-07-14T05:38:04.721210Z"
+   checksum="c9b2f99109df2bb08d1aa64505ff89bd"
+   last-author="tim"
+   kind="file"
+   prop-time="2006-07-28T05:02:10.000000Z"/>
+<entry
+   committed-rev="37"
+   name="shadow-left.gif"
+   text-time="2006-07-28T05:02:10.000000Z"
+   committed-date="2006-07-14T05:38:04.721210Z"
+   checksum="692c59c908ab4ac5eb367dc7cead1e67"
+   last-author="tim"
+   kind="file"
+   prop-time="2006-07-28T05:02:10.000000Z"/>
+<entry
+   committed-rev="37"
+   name="spinner.gif"
+   text-time="2006-07-28T05:02:10.000000Z"
+   committed-date="2006-07-14T05:38:04.721210Z"
+   checksum="5e8e1aa43cf316dfd9928dc84c438f76"
+   last-author="tim"
+   kind="file"
+   prop-time="2006-07-28T05:02:10.000000Z"/>
+<entry
+   committed-rev="37"
+   name="q-open.gif"
+   text-time="2006-07-28T05:02:10.000000Z"
+   committed-date="2006-07-14T05:38:04.721210Z"
+   checksum="6eccccb05c65463a603b7cce852e2d9b"
+   last-author="tim"
+   kind="file"
+   prop-time="2006-07-28T05:02:10.000000Z"/>
+<entry
+   committed-rev="37"
+   name="sbar-tile.gif"
+   text-time="2006-07-28T05:02:10.000000Z"
+   committed-date="2006-07-14T05:38:04.721210Z"
+   checksum="50d61869cf79032936e112d81283d67a"
+   last-author="tim"
+   kind="file"
+   prop-time="2006-07-28T05:02:10.000000Z"/>
+<entry
+   committed-rev="37"
+   name="bg-tile.gif"
+   text-time="2006-07-28T05:02:10.000000Z"
+   committed-date="2006-07-14T05:38:04.721210Z"
+   checksum="17a4d1bc90cde2ee0dad33e3fbb9230b"
+   last-author="tim"
+   kind="file"
+   prop-time="2006-07-28T05:02:10.000000Z"/>
+<entry
+   committed-rev="37"
+   name="q-close.gif"
+   text-time="2006-07-28T05:02:10.000000Z"
+   committed-date="2006-07-14T05:38:04.721210Z"
+   checksum="3685bf3e7bf0ed5f6c63bce733c31bbb"
+   last-author="tim"
+   kind="file"
+   prop-time="2006-07-28T05:02:10.000000Z"/>
+<entry
+   committed-rev="37"
+   name="postfooter.gif"
+   text-time="2006-07-28T05:02:10.000000Z"
+   committed-date="2006-07-14T05:38:04.721210Z"
+   checksum="be286296b5cb9459266ecacfbfee62dc"
+   last-author="tim"
+   kind="file"
+   prop-time="2006-07-28T05:02:10.000000Z"/>
+<entry
+   committed-rev="37"
+   name="shadow-top.gif"
+   text-time="2006-07-28T05:02:10.000000Z"
+   committed-date="2006-07-14T05:38:04.721210Z"
+   checksum="8fe7f6916049f3ddb57c51431e31fcdb"
+   last-author="tim"
+   kind="file"
+   prop-time="2006-07-28T05:02:10.000000Z"/>
+<entry
+   committed-rev="37"
+   name="xlink.gif"
+   text-time="2006-07-28T05:02:10.000000Z"
+   committed-date="2006-07-14T05:38:04.721210Z"
+   checksum="36e6f723e57127c3b95bfb547a07b905"
+   last-author="tim"
+   kind="file"
+   prop-time="2006-07-28T05:02:10.000000Z"/>
+<entry
+   committed-rev="37"
+   name="bullet.gif"
+   text-time="2006-07-28T05:02:10.000000Z"
+   committed-date="2006-07-14T05:38:04.721210Z"
+   checksum="39156da317eb66a3cdcbbffea675f940"
+   last-author="tim"
+   kind="file"
+   prop-time="2006-07-28T05:02:10.000000Z"/>
+</wc-entries>

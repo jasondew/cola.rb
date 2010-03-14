@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<wc-entries
+   xmlns="svn:">
+<entry
+   committed-rev="57"
+   name=""
+   committed-date="2006-07-28T04:58:38.326679Z"
+   url="https://digital-achievement.com/svn/public/typothemes/tags/release_4_0_0/iamrice/views/articles"
+   last-author="tim"
+   kind="dir"
+   uuid="e4d6e3be-9c12-0410-bc8d-bd43e36fdf11"
+   revision="66"/>
+<entry
+   committed-rev="57"
+   name="_comment.rhtml"
+   text-time="2006-07-28T05:02:10.000000Z"
+   committed-date="2006-07-28T04:58:38.326679Z"
+   checksum="bdd6dd50274249ec63e80838f2b33bf6"
+   last-author="tim"
+   kind="file"
+   prop-time="2006-07-28T05:02:10.000000Z"/>
+</wc-entries>

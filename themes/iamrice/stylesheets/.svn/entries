@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<wc-entries
+   xmlns="svn:">
+<entry
+   committed-rev="37"
+   name=""
+   committed-date="2006-07-14T05:38:04.721210Z"
+   url="https://digital-achievement.com/svn/public/typothemes/tags/release_4_0_0/iamrice/stylesheets"
+   last-author="tim"
+   kind="dir"
+   uuid="e4d6e3be-9c12-0410-bc8d-bd43e36fdf11"
+   revision="66"/>
+<entry
+   committed-rev="37"
+   name="iamrice.css"
+   text-time="2006-07-28T05:02:10.000000Z"
+   committed-date="2006-07-14T05:38:04.721210Z"
+   checksum="6744ba8ce04cf3db8d5a0710b79b2880"
+   last-author="tim"
+   kind="file"
+   prop-time="2006-07-28T05:02:10.000000Z"/>
+</wc-entries>
