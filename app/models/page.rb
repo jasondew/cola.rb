@@ -9,12 +9,14 @@ class Page < Content
     'name ASC'
   end
 
-  def location(anchor=nil, only_path=true)
-    typo_deprecated "Use permalink_url"
-    permalink_url(anchor, only_path)
+  def self.search_paginate(search_hash, paginate_hash)
+    list_function = ["Page"] + function_search_no_draft(search_hash)
+    paginate_hash[:order] = 'title ASC'
+    list_function << "paginate(paginate_hash)"
+    eval(list_function.join('.'))
   end
-  
-  def permalink_url(anchor=nil, only_path=true)
+
+  def permalink_url(anchor=nil, only_path=false)
     blog.url_for(
       :controller => '/articles',
       :action => 'view_page',
@@ -23,6 +25,11 @@ class Page < Content
       :only_path => only_path
     )
   end
+
+  def self.find_by_published_at
+    super(:created_at)
+  end
+
 
   def edit_url
     blog.url_for(:controller => "/admin/pages", :action =>"edit", :id => id)

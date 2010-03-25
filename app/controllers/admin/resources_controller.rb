@@ -1,20 +1,28 @@
 class Admin::ResourcesController < Admin::BaseController
   upload_status_for :file_upload, :status => :upload_status
 
+  cache_sweeper :blog_sweeper
+  
   def upload
     begin
       case request.method
         when :post
           file = params[:upload][:filename]
-          @up = Resource.create(:filename => file.original_filename, :mime => file.content_type.chomp, :created_at => Time.now)
+          unless file.content_type
+            mime = 'text/plain'
+          else
+            mime = file.content_type.chomp
+          end
+          @up = Resource.create(:filename => file.original_filename, :mime => mime, :created_at => Time.now)
 
           @up.write_to_disk(file)
-
-          @message = 'File uploaded: '+file.size.to_s
+          @up.create_thumbnail
+          
+          @message = _('File uploaded: ')+ file.size.to_s
           finish_upload_status "'#{@message}'"
       end
     rescue
-      @message = "'Unable to upload #{file.original_filename}'"
+      @message = "'" + _('Unable to upload') + " #{file.original_filename}'"
       @up.destroy unless @up.nil?
       raise
     end
@@ -24,8 +32,8 @@ class Admin::ResourcesController < Admin::BaseController
     @resource = Resource.find(params[:id])
     @resource.itunes_metadata = false
     @resource.save(false)
-    flash[:notice] = 'Metadata was successfully removed.'
-    redirect_to :action => 'list'
+    flash[:notice] = _('Metadata was successfully removed.')
+    redirect_to :action => 'index'
   end
 
   def update
@@ -43,56 +51,60 @@ class Admin::ResourcesController < Admin::BaseController
       @resource.itunes_category = itunes_category_pre
     end
     if request.post? and @resource.save
-      flash[:notice] = 'Metadata was successfully updated.'
+      flash[:notice] = _('Metadata was successfully updated.')
     else
-      flash[:error] = 'Not all metadata was defined correctly.'
+      flash[:error] = _('Not all metadata was defined correctly.')
       @resource.errors.each do |meta_key,val|
         flash[:error] << "<br />" + val
       end
     end
-    redirect_to :action => 'list'
+    redirect_to :action => 'index'
   end
 
   def set_mime
     @resource = Resource.find(params[:resource][:id])
     @resource.mime = params[:resource][:mime] unless params[:resource][:mime].empty?
     if request.post? and @resource.save
-      flash[:notice] = 'Content Type was successfully updated.'
+      flash[:notice] = _('Content Type was successfully updated.')
     else
-      flash[:error] = "Error occurred while updating Content Type."
+      flash[:error] = _("Error occurred while updating Content Type.")
     end
-    redirect_to :action => "list"
+    redirect_to :action => "index"
   end
-
 
   def upload_status
-    render :inline => "<%= upload_progress.completed_percent rescue 0 %> % complete", :layout => false
-  end
-
-  def list
-    @r = Resource.new
-    @itunes_category_list = @r.get_itunes_categories
-    @resources_pages, @resources = paginate :resource, :per_page => 15, :order_by => "created_at DESC", :parameter => 'id'
+    render :inline => "<%= upload_progress.completed_percent rescue 0 %> % " + _("complete"), :layout => false
   end
 
   def index
-    list
-    render :action => 'list'
+    @r = Resource.new
+    @itunes_category_list = @r.get_itunes_categories
+    @resources = Resource.paginate :page => params[:page], :conditions => "mime NOT LIKE '%image%'", :order => 'created_at DESC', :per_page => this_blog.admin_display_elements
   end
-
+  
+  def images
+    @resources = Resource.paginate :page => params[:page], :conditions => "mime LIKE '%image%'", :order => 'created_at DESC', :per_page => this_blog.admin_display_elements
+  end
+  
+  def get_thumbnails
+    position = params[:position].to_i
+    
+    @resources = Resource.find(:all, :conditions => "mime LIKE '%image%'", :order => 'created_at DESC', :limit => "#{position}, 10")
+    
+    render 'get_thumbnails', :layout => false
+    
+  end
+  
   def destroy
     begin
       @file = Resource.find(params[:id])
       case request.method
         when :post
           @file.destroy
-          redirect_to :action => 'list'
+          redirect_to :action => 'index'
       end
     rescue
       raise
     end
-  end
-
-  def new
   end
 end

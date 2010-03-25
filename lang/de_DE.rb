@@ -5,7 +5,7 @@ Localization.define('de_DE') do |l|
   l.store "Manage", "Verwalten"
   l.store "Feedback", "Diskussion"
   l.store "Design", "Design"
-  l.store "Users", ["Benutzer", "Benutzer"]
+  l.store "%d Users", ["Benutzer", "%d Benutzer"]
   l.store "Settings", "Einstellungen"
   l.store "Things you can do", "Folgendes können Sie tun ..."
   l.store "with %s Famfamfam iconset %s", "mit %s Famfamfam Icons %s"
@@ -63,11 +63,10 @@ Localization.define('de_DE') do |l|
   
   #admin/cache/list.rhtml
   l.store "Cache", "Cache"
-  l.store "There are %d entries in the page cache", ["Eine Seite im Cache", "%d Seiten sind aktuell im Cache"]
   
   #admin/categories/_categories.rhtml
   l.store "Category title", "Name der Kategorie"
-  l.store "Articles", ["Artikel", "Artikel"]
+  l.store "%d Articles", ["Artikel", "%d Artikel"]
   
   #admin/categories/_form.rhtml
   l.store "Name", "Name"
@@ -77,7 +76,7 @@ Localization.define('de_DE') do |l|
   l.store "Add category", "Kategorie hinzufügen"
   
   #admin/categorie/destroy.rhtml
-  l.store "Categories", ["Kategorie", "Kategorien"]
+  l.store "%d Categories", ["Kategorie", "%d Kategorien"]
   l.store "Show this category", "Kategorie anzeigen"
   l.store "Delete this category", "Kategorie löschen"
   l.store "Are you sure you want to delete the category ", "Sind Sie sicher, die Kategorie zu löschen: "
@@ -127,8 +126,8 @@ Localization.define('de_DE') do |l|
   #admin/content/_articles.rhtml
   l.store "Post title", "Titel des Artikels"
   l.store "Posted at", "Veröffentlicht am"
-  l.store "Comments", ["Kommentar", "Kommentare"]
-  l.store "Trackbacks", ["Trackback", "Trackbacks"]
+  l.store "%d Comments", ["Kommentar", "%d Kommentare"]
+  l.store "%d Trackbacks", ["Trackback", "%d Trackbacks"]
   l.store "Status", "Status"
   l.store "Offline", "Offline"
   l.store "Online", "Online"
@@ -144,7 +143,7 @@ Localization.define('de_DE') do |l|
   l.store "Article Body", "Artikel"
   l.store "Article Content", "Artikel Inhalt"
   l.store "Extended Content", "Erweiterter Inhalt"
-  l.store "Tags", ["Tag", "Tags"]
+  l.store "%d Tags", ["Tag", "%d Tags"]
   l.store "Save", "Speichern"
   l.store "Article Attachments", "Artikel Anhänge"
   l.store "Article Options", "Artikel Optionen"
@@ -212,6 +211,8 @@ Localization.define('de_DE') do |l|
   l.store "Cache", "Cache"
   l.store "Blog name", "Blog Titel"
   l.store "Blog subtitle", "Blog Untertitel"
+  l.store "Language", "Language" #Need translate
+  l.store "This option let you choose between the simple admin interface or the complete one, displaying much more options and therefore more complicated to use. For advanced users only!","This option let you choose between the simple admin interface or the complete one, displaying much more options and therefore more complicated to use. For advanced users only!" #Need translate
   l.store "Blog URL", "Blog Adresse"
   l.store "Latitude, Longitude", "geografische Breite, Länge"
   l.store "Display", "Zeige"
@@ -233,8 +234,8 @@ Localization.define('de_DE') do |l|
   l.store "This setting allows you to disable trackbacks for every article in your blog.  It won't remove existing trackbacks, but it will prevent any further attempt to add a trackback anywhere on your blog.", "Diese Option erlaubt es Ihnen, Trackbacks für alle Artikel im gesamten Blog zu deaktivieren. Dadurch werden zwar keine bereits existierenden Trackbacks entfernt, aber alle zukünftig irgendwo in Ihrem Blog eintreffenden Trackbacks werden abgewiesen."
   l.store "Disable trackbacks site-wide" ,"Trackbacks generell deaktivieren"
   l.store "Enable Trackbacks by default", "Trackbacks per default aktivieren"
-  l.store "You can enable site wide comment moderation. If you do so, no comment or trackback will appear on your blog unless you validate it", "Sie können die Moderation von Kommentaren auf der gesamten Website aktivieren. Dann erscheinen keine Kommentare oder Trackbacks in Ihrem Blog, die sie nicht überprüft haben"
-  l.store "Enable comments moderation", "Moderation von Kommentaren aktivieren"
+  l.store "You can enable site wide feedback moderation. If you do so, no comment or trackback will appear on your blog unless you validate it", "Sie können die Moderation von Kommentaren auf der gesamten Website aktivieren. Dann erscheinen keine Kommentare oder Trackbacks in Ihrem Blog, die sie nicht überprüft haben"
+  l.store "Enable feedback moderation", "Moderation von Kommentaren aktivieren"
   l.store "Enable comments by default", "Kommentare per default erlauben"
   l.store "Show your email address", "Ihre Email Adresse anzeigen"
   l.store "Enable gravatars", "Gratavare aktivieren"
@@ -402,7 +403,6 @@ Localization.define('de_DE') do |l|
   l.store "Jabber", "Jabber"
   l.store "Password Confirmation", "Passwort bestätigen"
   l.store "Send notification messages via email", "Benachrichtigung via Email schicken"
-  l.store "Send notification messages via jabber", "Benachrichtigung via Jabber schicken"
   l.store "Send notification messages when new articles are posted", "Benachrichtigung schicken, wenn neue Artikel veröffentlicht werden"
   l.store "Send notification messages when comments are posted", "Benachrichtigung schicken, wenn neue Kommentare eintreffen"
   
@@ -428,7 +428,6 @@ Localization.define('de_DE') do |l|
   #admin/user/show.rhtml
   l.store "User's articles", "Artikel des Benutzers"
   l.store "Notify via email", "Benachrichtigung via Email"
-  l.store "Notify via jabber", "Benachrichtigung via Jabber"
   l.store "Notify on new articles", "Benachrichtigung bei neuen Artikeln"
   l.store "Notify on new comments", "Benachrichtigung bei neuen Kommentaren"
   

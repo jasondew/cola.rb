@@ -16,4 +16,13 @@ config.action_controller.perform_caching             = false
 # ActionMailer::Base.deliveries array.
 config.action_mailer.delivery_method = :test
 
+# Disables requets forgery protection
+config.action_controller.allow_forgery_protection    = false 
+
 Migrator.offer_migration_when_available            = false
+require 'ruby-debug'
+config.gem "thoughtbot-factory_girl",
+  :lib    => "factory_girl",
+  :source => "http://gems.github.com"
+config.gem 'rspec', :lib => false
+config.gem 'rspec-rails', :lib => false

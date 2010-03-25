@@ -5,7 +5,7 @@ module Localization
   @@lang = :default
   
   def self._(string_to_localize, *args)
-    translated = @@l10s[@@lang][string_to_localize] || string_to_localize
+    translated = @@l10s[@@lang][string_to_localize].nil? ? string_to_localize : @@l10s[@@lang][string_to_localize]
     return translated.call(*args).to_s  if translated.is_a? Proc
     if translated.is_a? Array
       translated = if translated.size == 3 
@@ -15,6 +15,19 @@ module Localization
       end
     end
     sprintf translated, *args
+  end
+  
+  def self.__(string_to_localize, *args)
+    translated = @@l10s[@@lang][string_to_localize].nil? ? string_to_localize : @@l10s[@@lang][string_to_localize]
+    return translated.call(*args).to_s  if translated.is_a? Proc
+    if translated.is_a? Array
+      translated = if translated.size == 3 
+        translated[args[0]==0 ? 0 : (args[0]>1 ? 2 : 1)]
+      else
+        translated[args[0]>1 ? 1 : 0]
+      end
+    end
+    translated
   end
   
   def self.define(lang = :default)
@@ -43,4 +56,5 @@ end
 
 class Object
   def _(*args); Localization._(*args); end
+  def __(*args); Localization.__(*args); end
 end

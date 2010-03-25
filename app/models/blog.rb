@@ -4,37 +4,33 @@ class BlogRequest
   attr_accessor :protocol, :host_with_port, :path, :symbolized_path_parameters, :relative_url_root
 
   def initialize(root)
-    @protocol = @host_with_port = @path = ''
+    unless root =~ /(https?):\/\/([^\/]*)(.*)/
+      raise "Invalid root argument: #{root}"
+    end
+    @protocol = $1
+    @host_with_port = $2
+    @relative_url_root = $3.gsub(%r{/$},'')
+    @path = ''
     @symbolized_path_parameters = {}
-    @relative_url_root = root.gsub(%r{/^},'')
   end
 end
 
-# The Blog class represents one blog.  It stores most configuration settings
-# and is linked to most of the assorted content classes via has_many.
+# The Blog class represents the one and only blog.  It stores most
+# configuration settings and is linked to most of the assorted content
+# classes via has_many.
 #
-# Typo decides which Blog object to use by searching for a Blog base_url that
-# matches the base_url computed for each request.
-class Blog < CachedModel
+# Once upon a time, there were plans to make typo handle multiple blogs,
+# but it never happened and typo is now firmly single-blog.
+#
+class Blog < ActiveRecord::Base
   include ConfigManager
+  extend ActiveSupport::Memoizable
 
-  has_many :contents
-  has_many :trackbacks
-  has_many :articles
-  has_many :comments
-  has_many :pages, :order => "id DESC"
-  has_many(:published_articles, :class_name => "Article",
-           :conditions => {:published => true},
-           :include => [:categories, :tags],
-           :order => "contents.published_at DESC") do
-    def before(date = Time.now)
-      find(:all, :conditions => ["contents.created_at < ?", date])
+  validate_on_create { |blog|
+    unless Blog.count.zero?
+      blog.errors.add_to_base("There can only be one...")
     end
-  end
-
-  has_many :pages
-  has_many :comments
-  has_many :sidebars, :order => 'active_position ASC'
+  }
 
   serialize :settings, Hash
 
@@ -44,11 +40,11 @@ class Blog < CachedModel
   setting :title_prefix,               :integer, 0
   setting :geourl_location,            :string, ''
   setting :canonical_server_url,       :string, ''  # Deprecated
+  setting :lang,                       :string, 'en_US'
 
   # Spam
   setting :sp_global,                  :boolean, false
   setting :sp_article_auto_close,      :integer, 0
-  setting :sp_allow_non_ajax_comments, :boolean, true
   setting :sp_url_limit,               :integer, 0
   setting :sp_akismet_key,             :string, ''
 
@@ -63,8 +59,8 @@ class Blog < CachedModel
   setting :itunes_copyright,           :string, ''
 
   # Mostly Behaviour
-  setting :text_filter,                :string, ''
-  setting :comment_text_filter,        :string, ''
+  setting :text_filter,                :string, 'markdown smartypants'
+  setting :comment_text_filter,        :string, 'markdown smartypants'
   setting :limit_article_display,      :integer, 10
   setting :limit_rss_display,          :integer, 10
   setting :default_allow_pings,        :boolean, false
@@ -72,20 +68,32 @@ class Blog < CachedModel
   setting :default_moderate_comments,  :boolean, false
   setting :link_to_author,             :boolean, false
   setting :show_extended_on_rss,       :boolean, true
-  setting :theme,                      :string, 'azure'
+  setting :theme,                      :string, 'true-blue-3'
   setting :use_gravatar,               :boolean, false
   setting :global_pings_disable,       :boolean, false
-  setting :ping_urls,                  :string, "http://rpc.technorati.com/rpc/ping\nhttp://ping.blo.gs/\nhttp://rpc.weblogs.com/RPC2"
+  setting :ping_urls,                  :string, "http://blogsearch.google.com/ping/RPC2\nhttp://rpc.technorati.com/rpc/ping\nhttp://ping.blo.gs/\nhttp://rpc.weblogs.com/RPC2"
   setting :send_outbound_pings,        :boolean, true
   setting :email_from,                 :string, 'typo@example.com'
-  setting :editor,                     :integer, 1
+  setting :editor,                     :integer, 'visual'
+  setting :cache_option,               :string, 'caches_page'
+  setting :allow_signup,               :integer, 0
 
-  # Jabber config
-  setting :jabber_address,             :string, ''
-  setting :jabber_password,            :string, ''
-
+  # SEO
+  setting :meta_description,           :string, ''
+  setting :meta_keywords,              :string, ''
+  setting :google_analytics,           :string, ''
+  setting :feedburner_url,             :string, ''
+  setting :rss_description,            :boolean, false
+  setting :permalink_format,           :string, '/%year%/%month%/%day%/%title%'
+  setting :robots,                     :string, ''
+  setting :index_categories,           :boolean, true
+  setting :index_tags,                 :boolean, true
+  setting :admin_display_elements,     :integer, 10
   #deprecation warning for plugins removal
   setting :deprecation_warning,        :integer, 1
+
+
+  validate :permalink_has_identifier
 
   def initialize(*args)
     super
@@ -97,54 +105,74 @@ class Blog < CachedModel
     end
   end
 
-  # Find the Blog that matches a specific base URL.  If no Blog object is found
-  # that matches, then grab the default blog.  If *that* fails, then create a new
-  # Blog.  The last case should only be used when Typo is first installed.
-  def self.find_blog(base_url)
-    (Blog.find_by_base_url(base_url) rescue nil)|| Blog.default || Blog.new
-  end
-
-  # The default Blog.  This is the lowest-numbered blog, almost always id==1.
+  # The default Blog. This is the lowest-numbered blog, almost always
+  # id==1. This should be the only blog as well.
   def self.default
     find(:first, :order => 'id')
+  rescue
+    logger.warn 'You have no blog installed.'
+    nil
   end
 
+  # In settings with :article_id
   def ping_article!(settings)
+    unless global_pings_enabled? && settings.has_key?(:url) && settings.has_key?(:article_id)
+      throw :error, "Invalid trackback or trackbacks not enabled"
+    end
     settings[:blog_id] = self.id
-    article_id = settings[:id]
-    settings.delete(:id)
-    article = published_articles.find(article_id)
+    article = Article.find(settings[:article_id])
     unless article.allow_pings?
       throw :error, "Trackback not saved"
     end
     article.trackbacks.create!(settings)
   end
 
+  def global_pings_enabled?
+    ! global_pings_disable?
+  end
+
   # Check that all required blog settings have a value.
-  def is_ok?
+  def configured?
     settings.has_key?('blog_name')
   end
 
   # The +Theme+ object for the current theme.
   def current_theme
-    @cached_theme ||= Theme.find(theme)
+    Theme.find(theme)
   end
+  memoize :current_theme
 
   # Generate a URL based on the +base_url+.  This allows us to generate URLs
   # without needing a controller handy, so we can produce URLs from within models
   # where appropriate.
   #
-  # It also uses our new RouteCache, so repeated URL generation requests should be
-  # fast, as they bypass all of Rails' route logic.
-  def url_for(options = {}, *extra_params)
+  # It also caches the result in the RouteCache, so repeated URL generation
+  # requests should be fast, as they bypass all of Rails' route logic.
+  def url_for(options = {}, extra_params = {})
+    @request ||= BlogRequest.new(self.base_url)
     case options
-    when String then options # They asked for 'url_for "/some/path"', so return it unedited.
+    when String
+      if extra_params[:only_path]
+        url_generated = @request.relative_url_root
+      else
+        url_generated = self.base_url
+      end
+      url_generated += "/#{options}" # They asked for 'url_for "/some/path"', so return it unedited.
+      url_generated += "##{extra_params[:anchor]}" if extra_params[:anchor]
+      url_generated
     when Hash
       unless RouteCache[options]
-        options.reverse_merge!(:only_path => true, :controller => '/articles',
+        options.reverse_merge!(:only_path => false, :controller => '',
                                :action => 'permalink')
-        @url ||= ActionController::UrlRewriter.new(BlogRequest.new(self.base_url), {})
+        @url ||= ActionController::UrlRewriter.new(@request, {})
+        if ActionController::Base.relative_url_root.nil?
+          old_relative_url = nil
+        else
+          old_relative_url = ActionController::Base.relative_url_root.dup
+        end
+        ActionController::Base.relative_url_root = @request.relative_url_root
         RouteCache[options] = @url.rewrite(options)
+        ActionController::Base.relative_url_root = old_relative_url
       end
 
       return RouteCache[options]
@@ -158,40 +186,31 @@ class Blog < CachedModel
     "#{base_url}/files/#{filename}"
   end
 
-  # The base server URL.
-  def server_url
-    base_url
+  def requested_article(params)
+    Article.find_by_params_hash(params)
   end
 
-  # Deprecated
-  def canonical_server_url
-    typo_deprecated "Use base_url instead"
-    base_url
+  def articles_matching(query, args={})
+    Article.search(query, args)
   end
 
-  def [](key)  # :nodoc:
-    typo_deprecated "Use blog.#{key}"
-    self.send(key)
+  def rss_limit_params
+    limit = limit_rss_display.to_i
+    return limit.zero? \
+      ? {} \
+      : {:limit => limit}
   end
 
-  def []=(key, value)  # :nodoc:
-    typo_deprecated "Use blog.#{key}="
-    self.send("#{key}=", value)
+  def permalink_has_identifier
+    unless permalink_format =~ /(%year%|%month%|%day%|%title%)/
+      errors.add(:permalink_format, _("You need a permalink format with an identifier : %%month%%, %%year%%, %%day%%, %%title%%"))
+    end
+
+    # A permalink cannot end in .atom or .rss. it's reserved for the feeds
+    if permalink_format =~ /\.(atom|rss)$/
+      errors.add(:permalink_format, _("Can't end in .rss or .atom. These are reserved to be used for feed URLs"))
+    end
   end
 
-  def has_key?(key)  # :nodoc:
-    typo_deprecated "Why?"
-    self.class.fields.has_key?(key.to_s)
-  end
-
-  def find_already_published(content_type)  # :nodoc:
-    typo_deprecated "Use #{content_type}.find_already_published"
-    self.send(content_type).find_already_published
-  end
-
-  def current_theme_path  # :nodoc:
-    typo_deprecated "use current_theme.path"
-    Theme.themes_root + "/" + theme
-  end
 end
 

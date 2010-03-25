@@ -1,38 +1,41 @@
 class Category < ActiveRecord::Base
   acts_as_list
+  acts_as_tree :order=>"name"
   has_many :categorizations
-  has_many :articles, :through => :categorizations,
-    :order => "published_at DESC, created_at DESC"
 
-  def self.find_all_with_article_counters(maxcount=nil)
-    self.find_by_sql([%{ 
-      SELECT categories.id, categories.name, categories.permalink, categories.position, COUNT(articles.id) AS article_counter 
-      FROM #{Category.table_name} categories 
-        LEFT OUTER JOIN #{Category.table_name_prefix}categorizations#{Category.table_name_suffix} articles_categories 
-          ON articles_categories.category_id = categories.id 
-        LEFT OUTER JOIN #{Article.table_name} articles 
-          ON (articles_categories.article_id = articles.id AND articles.published = ?) 
-      GROUP BY categories.id, categories.name, categories.position, categories.permalink 
-      ORDER BY position 
+  has_many :articles,
+    :through => :categorizations,
+    :order   => "published_at DESC, created_at DESC"
+
+
+  default_scope :order => 'position ASC'
+
+  module Finders
+    def find_all_with_article_counters(maxcount=nil)
+      self.find_by_sql([%{
+      SELECT categories.id, categories.name, categories.permalink, categories.position, COUNT(articles.id) AS article_counter
+      FROM #{Category.table_name} categories
+        LEFT OUTER JOIN #{Category.table_name_prefix}categorizations#{Category.table_name_suffix} articles_categories
+          ON articles_categories.category_id = categories.id
+        LEFT OUTER JOIN #{Article.table_name} articles
+          ON (articles_categories.article_id = articles.id AND articles.published = ?)
+      GROUP BY categories.id, categories.name, categories.position, categories.permalink
+      ORDER BY position
       }, true]).each {|item| item.article_counter = item.article_counter.to_i }
-  end
+    end
 
-  def self.find(*args)
-    with_scope :find => {:order => 'position ASC'} do
-      super
+    def find_by_permalink(permalink, options = {})
+      with_scope(:find => options) do
+        find(:first, :conditions => {:permalink => permalink}) or
+          raise ActiveRecord::RecordNotFound
+      end
     end
   end
+  extend Finders
 
-  def self.find_by_permalink(*args)
-    super || new
-  end
 
   def self.to_prefix
     'category'
-  end
-
-  def stripped_name
-    self.name.to_url
   end
 
   def self.reorder(serialized_list)
@@ -47,8 +50,12 @@ class Category < ActiveRecord::Base
     reorder find(:all, :order => 'UPPER(name)').collect { |c| c.id }
   end
 
+  def stripped_name
+    self.name.to_url
+  end
+
   def published_articles
-    self.articles.find_already_published
+    articles.already_published
   end
 
   def display_name
@@ -56,13 +63,25 @@ class Category < ActiveRecord::Base
   end
 
   def permalink_url(anchor=nil, only_path=true)
-    blog = Blog.find(1) # remove me...
+    blog = Blog.default # remove me...
 
     blog.url_for(
-      :controller => '/articles',
-      :action => 'category',
+      :controller => '/categories',
+      :action => 'show',
       :id => permalink
     )
+  end
+
+  def to_atom(xml)
+    xml.category :term => permalink, :label => name, :scheme => permalink_url
+  end
+
+  def to_rss(xml)
+    xml.category name
+  end
+
+  def to_param
+    permalink
   end
 
   protected

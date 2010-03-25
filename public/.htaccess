@@ -1,7 +1,8 @@
 # General Apache options
 AddHandler fastcgi-script .fcgi
+#AddHandler fcgid-script .fcgi
 AddHandler cgi-script .cgi
-Options +FollowSymLinks +ExecCGI
+#Options +FollowSymLinks +ExecCGI
 
 # If you don't want Rails to look in certain directories,
 # use the following rewrite rules so that Apache won't rewrite certain requests
@@ -21,7 +22,7 @@ RewriteEngine On
 #   RewriteBase /blog
 
 RewriteRule ^$ index.html [QSA]
-RewriteRule ^([^.]+)$ $1.html [QSA]
+RewriteRule ^([^.]+)/!$ $1.html [QSA]
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteRule ^(.*)$ dispatch.fcgi [QSA,L]
 

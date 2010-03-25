@@ -73,7 +73,7 @@ class MovableTypeService < TypoWebService
   before_invocation :authenticate, :except => [:getTrackbackPings, :supportedMethods, :supportedTextFilters]
 
   def getRecentPostTitles(blogid, username, password, numberOfPosts)
-    this_blog.articles.find(:all,:order => "created_at DESC", :limit => numberOfPosts).collect do |article|
+    Article.find(:all,:order => "created_at DESC", :limit => numberOfPosts).collect do |article|
       MovableTypeStructs::ArticleTitle.new(
             :dateCreated => article.created_at,
             :userid      => blogid.to_s,
@@ -93,22 +93,22 @@ class MovableTypeService < TypoWebService
   end
 
   def getPostCategories(postid, username, password)
-    this_blog.articles.find(postid).categorizations.collect do |c|
+    Article.find(postid).categorizations.collect do |c|
       MovableTypeStructs::CategoryPerPost.new(
           :categoryName => c.category.name,
           :categoryId   => c.category_id.to_i,
-          :isPrimary    => c.is_primary.to_i
+          :isPrimary    => c.is_primary
         )
     end
   end
 
   def setPostCategories(postid, username, password, categories)
-    article = this_blog.articles.find(postid)
+    article = Article.find(postid)
     article.categories.clear if categories != nil
 
     for c in categories
       category = Category.find(c['categoryId'])
-      article.categories.push_with_attributes(category, :is_primary => c['isPrimary'] || 0)
+      article.add_category(category, c['isPrimary'])
     end
     article.save
   end
@@ -126,7 +126,7 @@ class MovableTypeService < TypoWebService
   end
 
   def getTrackbackPings(postid)
-    article = this_blog.articles.find(postid)
+    article = Article.find(postid)
     article.trackbacks.collect do |t|
       MovableTypeStructs::TrackBack.new(
           :pingTitle  => t.title.to_s,
@@ -137,14 +137,8 @@ class MovableTypeService < TypoWebService
   end
 
   def publishPost(postid, username, password)
-    article = this_blog.articles.find(postid)
+    article = Article.find(postid)
     article.published = true
     article.save
-  end
-
-  private
-
-  def pub_date(time)
-    time.strftime "%a, %e %b %Y %H:%M:%S %Z"
   end
 end

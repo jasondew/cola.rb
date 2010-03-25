@@ -1,20 +1,13 @@
-require 'observer'
 require 'set'
 
 class Content < ActiveRecord::Base
-  include Observable
-
   belongs_to :text_filter
-  belongs_to :blog
-  validates_presence_of :blog_id
-
-  composed_of :state, :class_name => 'ContentState::Factory',
-    :mapping => %w{ state memento }
 
   has_many :notifications, :foreign_key => 'content_id'
   has_many :notify_users, :through => :notifications,
     :source => 'notify_user',
     :uniq => true
+
 
   def notify_users=(collection)
     return notify_users.clear if collection.empty?
@@ -29,18 +22,44 @@ class Content < ActiveRecord::Base
 
   has_many :triggers, :as => :pending_item, :dependent => :delete_all
 
-  before_save :state_before_save
-  after_save :post_trigger, :state_after_save
+  named_scope :published_at_like, lambda {|date_at| {:conditions => {
+    :published_at => (
+      if date_at =~ /\d{4}-\d{2}-\d{2}/
+        DateTime.strptime(date_at, '%Y-%m-%d').beginning_of_day..DateTime.strptime(date_at, '%Y-%m-%d').end_of_day
+      elsif date_at =~ /\d{4}-\d{2}/
+        DateTime.strptime(date_at, '%Y-%m').beginning_of_month..DateTime.strptime(date_at, '%Y-%m').end_of_month
+      elsif date_at =~ /\d{4}/
+        DateTime.strptime(date_at, '%Y').beginning_of_year..DateTime.strptime(date_at, '%Y').end_of_year
+      else
+        date_at
+      end
+    )}
+  }
+  }
+  named_scope :user_id, lambda {|user_id| {:conditions => ['user_id = ?', user_id]}}
+  named_scope :published, {:conditions => ['published = ?', true]}
+  named_scope :order, lambda {|order_by| {:order => order_by}}
+  named_scope :not_published, {:conditions => ['published = ?', false]}
+  named_scope :draft, {:conditions => ['state = ?', 'draft']}
+  named_scope :no_draft, {:conditions => ['state <> ?', 'draft'], :order => 'created_at DESC'}
+  named_scope :searchstring, lambda {|search_string|
+    tokens = search_string.split(' ').collect {|c| "%#{c.downcase}%"}
+    {:conditions => ['state = ? AND ' + (['(LOWER(body) LIKE ? OR LOWER(extended) LIKE ? OR LOWER(title) LIKE ?)']*tokens.size).join(' AND '),
+                        "published", *tokens.collect{ |token| [token] * 3 }.flatten]}
+  }
+  named_scope :already_published, lambda { {:conditions => ['published = ? AND published_at < ?', true, Time.now],
+    :order => default_order,
+    }}
 
   serialize :whiteboard
 
+  attr_accessor :just_changed_published_status
+  alias_method :just_changed_published_status?, :just_changed_published_status
+
+  include Stateful
+
   @@content_fields = Hash.new
   @@html_map       = Hash.new
-
-  def initialize(*args, &block)
-    super(*args, &block)
-    set_default_blog
-  end
 
   def invalidates_cache?(on_destruction = false)
     if on_destruction
@@ -50,14 +69,8 @@ class Content < ActiveRecord::Base
     end
   end
 
-  def set_default_blog
-    if self.blog_id == nil or self.blog_id == 0
-      self.blog = Blog.default
-    end
-  end
-
   class << self
-    # Quite a bit of this isn't needed anymore.
+    # FIXME: Quite a bit of this isn't needed anymore.
     def content_fields(*attribs)
       @@content_fields[self] = ((@@content_fields[self]||[]) + attribs).uniq
       @@html_map[self] = nil
@@ -71,7 +84,6 @@ class Content < ActiveRecord::Base
         end
         unless self.method_defined?("#{field}_html")
           define_method("#{field}_html") do
-            typo_deprecated "Use html(:#{field})"
             html(field.to_sym)
           end
         end
@@ -114,18 +126,70 @@ class Content < ActiveRecord::Base
         find_published(what, options)
       end
     end
+
+    def find_by_published_at(column_name = :published_at)
+      from_where = "FROM #{self.table_name} WHERE #{column_name} is not NULL AND type='#{self.name}'"
+
+      # Implement adapter-specific groupings below, or allow us to fall through to the generic ruby-side grouping
+
+      if defined?(ActiveRecord::ConnectionAdapters::MysqlAdapter) && self.connection.is_a?(ActiveRecord::ConnectionAdapters::MysqlAdapter)
+        # MySQL uses date_format
+        find_by_sql("SELECT date_format(#{column_name}, '%Y-%m') AS publication #{from_where} GROUP BY publication ORDER BY publication DESC")
+
+      elsif defined?(ActiveRecord::ConnectionAdapters::PostgreSQLAdapter) && self.connection.is_a?(ActiveRecord::ConnectionAdapters::PostgreSQLAdapter)
+        # PostgreSQL uses to_char
+        find_by_sql("SELECT to_char(#{column_name}, 'YYYY-MM') AS publication #{from_where} GROUP BY publication ORDER BY publication DESC")
+
+      else
+        # If we don't have an adapter-safe conversion from date -> YYYY-MM,
+        # we'll do the GROUP BY server-side. There won't be very many objects
+        # in this array anyway.
+        date_map = {}
+        dates = find_by_sql("SELECT #{column_name} AS publication #{from_where}")
+
+        dates.map! do |d|
+          d.publication = Time.parse(d.publication).strftime('%Y-%m')
+          d.freeze
+          if !date_map.has_key?(d.publication)
+            date_map[d.publication] = true
+            d
+          end
+        end
+        dates.reject!{|d| d.blank? || d.publication.blank?}
+        dates.sort!{|a,b| b.publication <=> a.publication}
+
+        dates
+      end
+    end
+
+    def function_search_no_draft(search_hash)
+      list_function = []
+      if search_hash.nil?
+        search_hash = {}
+      end
+
+      if search_hash[:searchstring]
+        list_function << 'searchstring(search_hash[:searchstring])'
+      end
+
+      if search_hash[:published_at] and %r{(\d\d\d\d)-(\d\d)} =~ search_hash[:published_at]
+        list_function << 'published_at_like(search_hash[:published_at])'
+      end
+
+      if search_hash[:user_id] && search_hash[:user_id].to_i > 0
+        list_function << 'user_id(search_hash[:user_id])'
+      end
+
+      if search_hash[:published]
+        list_function << 'published' if search_hash[:published].to_s == '1'
+        list_function << 'not_published' if search_hash[:published].to_s == '0'
+      end
+      list_function
+    end
   end
 
   def content_fields
     @@content_fields[self.class]
-  end
-
-  def state_before_save
-    state.before_save(self)
-  end
-
-  def state_after_save
-    state.after_save(self)
   end
 
   def html_map(field=nil)
@@ -144,7 +208,7 @@ class Content < ActiveRecord::Base
     elsif self.class.html_map(field)
       generate_html(field)
     else
-      raise "Unknown field: #{field.inspect} in article.html"
+      raise "Unknown field: #{field.inspect} in content.html"
     end
   end
 
@@ -153,8 +217,7 @@ class Content < ActiveRecord::Base
   # object in @@cache.
   def generate_html(field, text = nil)
     text ||= self[field].to_s
-    html = text_filter.filter_text_for_content(blog, text, self)
-    html ||= text # just in case the filter puked
+    html = text_filter.filter_text_for_content(blog, text, self) || text
     html_postprocess(field,html).to_s
   end
 
@@ -175,7 +238,7 @@ class Content < ActiveRecord::Base
   end
 
   # Grab the text filter for this object.  It's either the filter specified by
-  # self.text_filter_id, or the default specified in the blog object.
+  # self.text_filter_id, or the default specified in the default blog object.
   def text_filter
     if self[:text_filter_id] && !self[:text_filter_id].zero?
       TextFilter.find(self[:text_filter_id])
@@ -186,7 +249,12 @@ class Content < ActiveRecord::Base
 
   # Set the text filter for this object.
   def text_filter=(filter)
-    returning(filter.to_text_filter) { |tf| self.text_filter_id = tf.id }
+    returning(filter.to_text_filter) do |tf|
+      if tf.id != text_filter_id
+        changed if !new_record? && published?
+      end
+      self.text_filter_id = tf.id
+    end
   end
 
   # Changing the title flags the object as changed
@@ -194,24 +262,13 @@ class Content < ActiveRecord::Base
     if new_title == self[:title]
       self[:title]
     else
-      self.changed
+      changed if !new_record? && published?
       self[:title] = new_title
     end
   end
 
-  # FIXME -- this feels wrong.
   def blog
-    self[:blog] ||= blog_id.to_i.zero? ? Blog.default : Blog.find(blog_id)
-  end
-
-  def state=(newstate)
-    if state
-      state.exit_hook(self, newstate)
-    end
-    @state = newstate
-    self[:state] = newstate.memento
-    newstate.enter_hook(self)
-    @state
+    @blog ||= Blog.default
   end
 
   def publish!
@@ -219,71 +276,91 @@ class Content < ActiveRecord::Base
     self.save!
   end
 
-  def withdraw
-    state.withdraw(self)
-  end
-
   def withdraw!
     self.withdraw
     self.save!
-  end
-
-  def published=(a_boolean)
-    self[:published] = a_boolean
-    state.change_published_state(self, a_boolean)
-  end
-
-  def published_at=(a_time)
-    state.set_published_at(self, (a_time.to_time rescue nil))
   end
 
   def published_at
     self[:published_at] || self[:created_at]
   end
 
-  def published?
-    state.published?(self)
-  end
-
-  def just_published?
-    state.just_published?
-  end
-
-  def just_changed_published_status?
-    state.just_changed_published_status?
-  end
-
-  def withdrawn?
-    state.withdrawn?
-  end
-
-  def publication_pending?
-    state.publication_pending?
-  end
-
-  def post_trigger
-    state.post_trigger(self)
-  end
-
-  def after_save
-    state.after_save(self)
-  end
-
   def send_notification_to_user(user)
     notify_user_via_email(user)
-    notify_user_via_jabber(user)
   end
 
-  def send_notifications()
-    state.send_notifications(self)
+  def really_send_notifications
+    returning true do
+      interested_users.each do |value|
+        send_notification_to_user(value)
+      end
+    end
   end
 
-  # deprecated
-  def full_html
-    typo_deprecated "use .html instead"
-    html
+  def to_atom xml
+    xml.entry self, :url => permalink_url do |entry|
+      atom_author(entry)
+      atom_title(entry)
+      atom_groupings(entry)
+      atom_enclosures(entry)
+      atom_content(entry)
+    end
   end
 
+  def to_rss(xml)
+    xml.item do
+      rss_title(xml)
+      rss_description(xml)
+      xml.pubDate published_at.rfc822
+      xml.guid "urn:uuid:#{guid}", :isPermaLink => "false"
+      rss_author(xml)
+      rss_comments(xml)
+      rss_groupings(xml)
+      rss_enclosure(xml)
+      rss_trackback(xml)
+      xml.link normalized_permalink_url
+    end
+  end
+
+  def rss_comments(xml)
+  end
+
+  def rss_description(xml)
+    post = html(blog.show_extended_on_rss ? :all : :body)
+    if blog.rss_description
+      if respond_to?(:user) && self.user && self.user.name
+        rss_desc = "<hr /><p><small>#{_('Original article writen by')} #{self.user.name} #{_('and published on')} <a href='#{blog.base_url}'>#{blog.blog_name}</a> | <a href='#{self.permalink_url}'>#{_('direct link to this article')}</a> | #{_('If you are reading this article elsewhere than')} <a href='#{blog.base_url}'>#{blog.blog_name}</a>, #{_('it has been illegally reproduced and without proper authorization')}.</small></p>"
+      else
+        rss_desc = ""
+      end
+      post = post + rss_desc
+    end
+    xml.description(post)
+  end
+
+  def rss_groupings(xml)
+  end
+
+  def rss_enclosure(xml)
+  end
+
+  def rss_trackback(xml)
+  end
+
+  def atom_groupings(xml)
+  end
+
+  def atom_enclosures(xml)
+  end
+
+  def atom_content(entry)
+    entry.content(html(:all), :type => 'html')
+  end
+
+  # TODO: Perhaps permalink_url should produce valid URI's instead of IRI's
+  def normalized_permalink_url
+    @normalized_permalink_url ||= Addressable::URI.parse(permalink_url).normalize
+  end
 end
 
 class Object
@@ -293,7 +370,10 @@ class Object
 end
 
 class ContentTextHelpers
+  include ActionView::Helpers::UrlHelper
   include ActionView::Helpers::TagHelper
+  include ActionView::Helpers::SanitizeHelper
   include ActionView::Helpers::TextHelper
+  extend ActionView::Helpers::SanitizeHelper::ClassMethods
 end
 

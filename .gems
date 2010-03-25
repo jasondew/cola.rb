@@ -1,0 +1,9 @@
+htmlentities              --source gemcutter.org
+calendar_date_select      --source gemcutter.org
+bluecloth                 --source gemcutter.org   --version '~> 2.0.5'
+coderay                   --source gemcutter.org   --version '~> 0.8'
+RedCloth                  --source gemcutter.org   --version '~> 4.2.2'
+addressable               --source gemcutter.org   --version '~> 2.1.0'
+mini_magick               --source gemcutter.org   --version '~> 1.2.5'
+mislav-will_paginate      --source gems.github.com --version '~> 2.3.11'
+panztel-actionwebservice  --source gems.github.com --version '= 2.3.5'

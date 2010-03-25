@@ -1,6 +1,7 @@
 class BackendController < ContentController
+  skip_before_filter :verify_authenticity_token
+  require 'actionwebservice'
   cache_sweeper :blog_sweeper
-  session :off
 
   web_service_dispatching_mode :layered
   web_service_exception_reporting false
@@ -9,5 +10,11 @@ class BackendController < ContentController
   web_service(:mt)          { MovableTypeService.new(self) }
   web_service(:blogger)     { BloggerService.new(self) }
 
-  alias xmlrpc api
+  def xmlrpc
+    api
+  end
+  
+  def api
+    dispatch_web_service_request
+  end
 end
